@@ -1,0 +1,47 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import Logo from "../components/Logo.svelte";
+
+interface Props {
+    title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<BaseLayout title={title}>
+    <main class="max-w-4xl mx-auto py-4 px-4 sm:py-0 sm-px-0">
+        <div>
+            <a href="/">
+                <Logo variant="small" client:load />
+            </a>
+        </div>
+        <div
+            class="overflow-hidden text-[blue] py-2 grid grid-rows-1 grid-cols-1"
+        >
+            <div class="col-start-1 col-end-2 row-start-1 row-end-2">
+                ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+            </div>
+            <nav
+                class="col-start-1 col-end-2 row-start-1 row-end-2 flex justify-end gap-2"
+            >
+                <a href="/"> Home </a>
+                <a href="/events"> Events </a>
+                <a href="/about"> About </a>
+                <a href="/discord"> Discord </a>
+            </nav>
+        </div>
+
+        <div class="px-1 border border-[blue]">
+            <h1>{title}</h1>
+            <slot />
+        </div>
+    </main>
+</BaseLayout>
+
+<style>
+    nav a {
+        background-color: white;
+        text-decoration: underline;
+    }
+</style>

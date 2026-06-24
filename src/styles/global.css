@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+    --default-font-family: "Times New Roman", "Times", "serif";
+}
+
+* {
+    color: blue;
+}
+
+::selection {
+    background: blue;
+    color: white;
+}
+
+::-moz-selection {
+    background: blue;
+    color: white;
+}

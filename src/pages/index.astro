@@ -1,17 +1,52 @@
 ---
-
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Logo from "../components/Logo.svelte";
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<BaseLayout title="Live Coders Naarm">
+    <main class="max-w-4xl mx-auto py-4 px-4 sm:py-0 sm-px-0">
+        <div class="col-span-2">
+            <Logo variant="large" client:load />
+        </div>
+        <div class="col-span-2 overflow-hidden text-[blue] py-2">
+            ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+        </div>
+
+        <div class="px-1 border border-[blue]">
+            <div>
+                <h1>Live Coders Naarm</h1>
+                <p>
+                    Creative coding meetups for everyone in Melbourne, Australia
+                </p>
+            </div>
+
+            <nav class="text-right">
+                <ul>
+                    <li>
+                        <a href="/discord"> join the discord </a>
+                    </li>
+                    <li>
+                        <a href="/about"> about </a>
+                    </li>
+                    <li>
+                        <a href="/events"> events </a>
+                    </li>
+
+                    <li>
+                        <a href="/tools"> tools </a>
+                    </li>
+                    <li>
+                        <a href="/members"> members </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </main>
+</BaseLayout>
+
+<style>
+    a {
+        color: blue;
+        text-decoration: underline;
+    }
+</style>
