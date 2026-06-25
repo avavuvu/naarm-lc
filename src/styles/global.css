@@ -2,18 +2,20 @@
 
 @theme {
     --default-font-family: "Times New Roman", "Times", "serif";
+    --color-primary: blue;
+    --color-surface: white;
 }
 
 * {
-    color: blue;
+    color: var(--color-primary);
 }
 
 ::selection {
-    background: blue;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-surface);
 }
 
 ::-moz-selection {
-    background: blue;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-surface);
 }

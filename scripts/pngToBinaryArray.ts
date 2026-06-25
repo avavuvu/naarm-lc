@@ -3,7 +3,12 @@
 import sharp from "sharp";
 import { writeFile } from "node:fs/promises";
 
-const file = await Bun.file("./scripts/assets/logo-small.png").arrayBuffer();
+if (!process.argv[2]) {
+    throw new Error("No argument provided for image path!");
+}
+const filePath = process.argv[2];
+
+const file = await Bun.file(filePath).arrayBuffer();
 
 const data = await sharp(file).raw().toBuffer();
 
@@ -18,4 +23,6 @@ for (let i = 0; i < data.length / 4; i++) {
     out[i] = 0;
 }
 
-writeFile("./scripts/assets/output.txt", out.join(""));
+const outputName = `${Bun.file(filePath).name!.split("/").at(-1)}.txt`;
+
+writeFile(`./scripts/assets/${outputName}`, out.join(""));

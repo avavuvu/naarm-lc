@@ -3,5 +3,21 @@ import SubLayout from "../layouts/SubLayout.astro";
 ---
 
 <SubLayout title="Tools">
-    <p>This could be where we showcase all our tools!</p>
+    <p>Tools created by our community</p>
+
+    <ul class="grid grid-cols-2 gap-2">
+        <li class="border grid grid-cols-2 gap-1">
+            <div>
+                <h2>
+                    <a class="underline" href="https://groups.naarm.lc"
+                        >Group Generator</a
+                    >
+                </h2>
+                <p>Generate groups for live jams</p>
+            </div>
+            <a href="https://groups.naarm.lc">
+                <img src="/tools/group-generator.png" />
+            </a>
+        </li>
+    </ul>
 </SubLayout>

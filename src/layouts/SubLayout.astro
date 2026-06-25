@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "./BaseLayout.astro";
 import Logo from "../components/Logo.svelte";
+import Footer from "../components/Footer.svelte";
 
 interface Props {
     title: string;
@@ -10,38 +11,61 @@ const { title } = Astro.props;
 ---
 
 <BaseLayout title={title}>
-    <main class="max-w-4xl mx-auto py-4 px-4 sm:py-0 sm-px-0">
-        <div>
+    <main class="max-w-4xl mx-auto">
+        <div class="absolute sm:relative -z-10">
             <a href="/">
-                <Logo variant="small" client:load />
+                <div class="block sm:hidden">
+                    <Logo variant="sideways" client:visible />
+                </div>
+                <div class="hidden sm:block">
+                    <Logo variant="small" client:visible />
+                </div>
             </a>
         </div>
-        <div
-            class="overflow-hidden text-[blue] py-2 grid grid-rows-1 grid-cols-1"
-        >
-            <div class="col-start-1 col-end-2 row-start-1 row-end-2">
-                ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-            </div>
-            <nav
-                class="col-start-1 col-end-2 row-start-1 row-end-2 flex justify-end gap-2"
+        <div class="py-9 pl-12 pr-2 sm:py-0 sm-px-0 sm:pl-0 sm:pr-0">
+            <div
+                class="overflow-hidden text-primary py-2 grid grid-rows-1 grid-cols-1"
             >
-                <a href="/"> Home </a>
-                <a href="/events"> Events </a>
-                <a href="/about"> About </a>
-                <a href="/discord"> Discord </a>
-            </nav>
-        </div>
+                <div
+                    class="bg-surface border col-start-1 col-end-2 row-start-1 row-end-2"
+                >
+                    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+                </div>
+                <nav
+                    class="col-start-1 col-end-2 row-start-1 row-end-2 flex justify-end gap-2"
+                >
+                    <a href="/"> home </a>
+                    <!-- <a href="/events"> events </a> -->
+                    <a href="/about"> about </a>
+                    <a class="mr-0.5" href="/discord"> discord </a>
+                </nav>
+            </div>
 
-        <div class="px-1 border border-[blue]">
-            <h1>{title}</h1>
-            <slot />
+            <div class="px-1 bg-surface border border-primary min-h-[60vh]">
+                <h1>{title}</h1>
+                <slot />
+            </div>
+            <div class="block sm:hidden pt-12">
+                <Footer />
+            </div>
         </div>
     </main>
+    <div class="hidden sm:block">
+        <div class="absolute -z-10">
+            <Logo variant="blank" client:visible />
+        </div>
+        <div class="max-w-4xl mx-auto pt-12">
+            <Footer />
+        </div>
+    </div>
 </BaseLayout>
 
 <style>
     nav a {
-        background-color: white;
+        background-color: var(--color-surface);
         text-decoration: underline;
+        color: var(--color-primary);
+        border-bottom: 1px solid var(--color-primary);
+        border-top: 1px solid var(--color-primary);
     }
 </style>
