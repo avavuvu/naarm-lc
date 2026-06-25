@@ -1,0 +1,40 @@
+---
+import { getCollection } from "astro:content";
+import SubLayout from "../../layouts/SubLayout.astro";
+
+const members = await getCollection("members");
+const formattedMembers = members
+    .map((member) => ({
+        href: `/members/${member.id}`,
+        ...member.data,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+---
+
+<SubLayout title="Members" hideTitle>
+    <div class="italic">
+        <a class="underline" href="/">naarm.lc</a> - <h1 class="inline">
+            <a class="underline" href="/members">members</a>
+        </h1>
+    </div>
+    <p>
+        Want to join? Visit the <a class="underline" href="/discord">Discord!</a
+        >
+    </p>
+
+    <hr class="my-4" />
+    <ul class="columns-2 md:columns-3">
+        {
+            formattedMembers.map(({ name, additionalName, href }) => (
+                <li>
+                    <a class="underline" {href}>
+                        {name}{" "}
+                        {additionalName && (
+                            <span class="italic"> ({additionalName})</span>
+                        )}
+                    </a>
+                </li>
+            ))
+        }
+    </ul>
+</SubLayout>

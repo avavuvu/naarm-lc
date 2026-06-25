@@ -7,6 +7,11 @@ import tailwindcss from "@tailwindcss/vite";
 
 // https://astro.build/config
 export default defineConfig({
+    image: {
+        service: {
+            entrypoint: "./src/lib/mosaicImageService.ts",
+        },
+    },
     redirects: {
         "/discord": "https://discord.gg/37xpc8hyaG",
     },

@@ -1,0 +1,82 @@
+---
+import type { GetStaticPaths } from "astro";
+import SubLayout from "../../layouts/SubLayout.astro";
+import { getCollection } from "astro:content";
+import { render } from "astro:content";
+import { Image } from "astro:assets";
+
+export const getStaticPaths = (async () => {
+    const members = await getCollection("members");
+
+    return members.map((member) => ({
+        params: {
+            slug: member.id,
+        },
+        props: {
+            member,
+        },
+    }));
+}) satisfies GetStaticPaths;
+
+const { member } = Astro.props;
+
+const {
+    data: { name, additionalName, links, profile },
+    id,
+} = member;
+
+const { Content } = await render(member);
+---
+
+<SubLayout title={name} hideTitle>
+    <div class="italic">
+        <a class="underline" href="/">naarm.lc</a> - <a
+            class="underline"
+            href="/members">members</a
+        > - <a class="underline" href={`/members/${id}`}>{name.toLowerCase()}</a
+        >
+    </div>
+
+    <div
+        class="grid-cols-[20%_60%_auto] md:grid-cols-[10%_20%_auto_10%] grid grid-rows-1 py-12"
+    >
+        {
+            profile?.src && (
+                <div class="border col-start-2 col-end-4 row-start-1 row-end-2">
+                    <Image
+                        src={profile.src}
+                        quality="mosaic"
+                        width="1200"
+                        alt="..."
+                    />
+                </div>
+            )
+        }
+        <div
+            class="bg-white border p-3 mt-36 md:mt-4 ml-4 h-min col-start-1 col-end-3 row-start-1 row-end-2"
+        >
+            <h1>
+                {name}{
+                    additionalName && (
+                        <span class="italic"> ({additionalName})</span>
+                    )
+                }
+                <Content />
+
+                <ul class="flex gap-x-2 flex-wrap">
+                    {
+                        links.map((link) => (
+                            <li>
+                                [
+                                <a class="underline" href={link.link}>
+                                    {link.type}
+                                </a>
+                                ]
+                            </li>
+                        ))
+                    }
+                </ul>
+            </h1>
+        </div>
+    </div>
+</SubLayout>
