@@ -1,0 +1,4 @@
+$drums: stack(
+  s("bd").beat("0, -, 10", 16).gain("[0.25, 1]*16"), //kicks
+  s("sd").beat("4, 12", 16).gain("[0.25, 1]*16"), //snares
+).bank("rolandtr909")

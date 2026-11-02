@@ -1,0 +1,34 @@
+---
+import SubLayout from "../layouts/SubLayout.astro";
+import { getMyPatterns } from "../utils/my_patterns";
+
+const myPatterns = await getMyPatterns();
+
+const BASE_URL = "https://strudel.cc/";
+const baseNoTrailing = BASE_URL.endsWith("/")
+  ? BASE_URL.slice(0, -1)
+  : BASE_URL;
+---
+
+<SubLayout title="swatch">
+  {
+    Object.keys(myPatterns).length === 0 && (
+      <div class="prose prose-invert p-2">No patterns yet</div>
+    )
+  }
+  <div
+    class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 p-2 select-none"
+  >
+    {
+      Object.entries(myPatterns).map(([name, tune]) => (
+        <a
+          class="relative bg-surface border border-primary aspect-square place-content-center text-center"
+          href={`${baseNoTrailing}/#${btoa(tune as string)}`}
+          target="_blank"
+        >
+          {name}
+        </a>
+      ))
+    }
+  </div>
+</SubLayout>
