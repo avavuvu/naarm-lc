@@ -11,24 +11,16 @@ const baseNoTrailing = BASE_URL.endsWith("/")
 ---
 
 <SubLayout title="swatch">
-  {
-    Object.keys(myPatterns).length === 0 && (
-      <div>no patterns yet</div>
-    )
-  }
-  <div
-    class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 p-2 select-none"
-  >
-    {
-      Object.entries(myPatterns).map(([name, tune]) => (
-        <a
-          class="relative bg-surface border border-primary aspect-square place-content-center text-center"
-          href={`${baseNoTrailing}/#${btoa(tune as string)}`}
-          target="_blank"
-        >
-          {name}
-        </a>
-      ))
-    }
+  {Object.keys(myPatterns).length === 0 && <div>no patterns yet</div>}
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-2 select-none">
+    {Object.entries(myPatterns).map(([name, tune]) => (
+      <a
+        class="relative bg-surface border border-primary aspect-square place-content-center text-center"
+        href={`${baseNoTrailing}/#${btoa(tune as string)}`}
+        target="_blank"
+      >
+        {name}
+      </a>
+    ))}
   </div>
 </SubLayout>
