@@ -1,8 +1,13 @@
 <script lang="ts">
     import { authClient } from "../lib/auth-client";
 
-    // An error from a failed login redirect, shown until the next attempt
-    const { error: redirectError = "" }: { error?: string } = $props();
+    const {
+        providers,
+        // An error from a failed login redirect, shown until the next attempt
+        error: redirectError = "",
+    }: { providers: readonly ("discord" | "github")[]; error?: string } = $props();
+
+    const providerNames = { discord: "Discord", github: "GitHub" };
 
     let email = $state("");
     let status = $state<"idle" | "sending" | "sent">("idle");
@@ -13,15 +18,11 @@
     const callbackURL = "/profile";
     const errorCallbackURL = "/login";
 
-    async function discord() {
+    async function social(provider: "discord" | "github") {
         attempted = true;
         error = "";
-        const result = await authClient.signIn.social({
-            provider: "discord",
-            callbackURL,
-            errorCallbackURL,
-        });
-        if (result.error) error = result.error.message ?? "Couldn't reach Discord";
+        const result = await authClient.signIn.social({ provider, callbackURL, errorCallbackURL });
+        if (result.error) error = result.error.message ?? `Couldn't reach ${providerNames[provider]}`;
     }
 
     async function sendLink(event: SubmitEvent) {
@@ -44,9 +45,11 @@
 </script>
 
 <div class="flex flex-col gap-6 max-w-sm py-4">
-    <button type="button" class="border px-2 py-1" onclick={discord}>
-        log in with Discord
-    </button>
+    {#each providers as provider (provider)}
+        <button type="button" class="border px-2 py-1" onclick={() => social(provider)}>
+            log in with {providerNames[provider]}
+        </button>
+    {/each}
 
     <p>or get a login link by email</p>
 

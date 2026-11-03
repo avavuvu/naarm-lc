@@ -24,6 +24,8 @@ export default defineConfig({
             BETTER_AUTH_URL: envField.string({ context: "server", access: "secret", optional: true }),
             DISCORD_CLIENT_ID: envField.string({ context: "server", access: "secret" }),
             DISCORD_CLIENT_SECRET: envField.string({ context: "server", access: "secret" }),
+            GITHUB_CLIENT_ID: envField.string({ context: "server", access: "secret", optional: true }),
+            GITHUB_CLIENT_SECRET: envField.string({ context: "server", access: "secret", optional: true }),
         },
     },
 

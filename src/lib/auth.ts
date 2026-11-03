@@ -8,11 +8,19 @@ import {
     BETTER_AUTH_URL,
     DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET,
+    GITHUB_CLIENT_ID,
+    GITHUB_CLIENT_SECRET,
 } from "astro:env/server";
 import { db } from "./db";
 import * as schema from "./schema";
 
-export const USERNAME_PATTERN = /^[a-z0-9_-]{2,32}$/;
+// Within Discourse's username rules, so usernames carry over to a forum unchanged
+export const USERNAME_PATTERN = /^(?=.{3,20}$)[a-z0-9]+(?:[_-][a-z0-9]+)*$/;
+export const USERNAME_RULES =
+    "Usernames are 3–20 characters: lowercase letters, numbers, _ and -, starting and ending with a letter or number";
+
+/** Login providers with credentials set; GitHub is optional */
+export const socialLogins = ["discord", ...(GITHUB_CLIENT_ID ? ["github"] : [])] as const;
 
 const withoutTokens = <T extends object>(account: T) => ({
     ...account,
@@ -47,6 +55,26 @@ export const auth = betterAuth({
             mapProfileToUser: (profile) => ({
                 email: profile.email ?? `${profile.id}@discord.placeholder.invalid`,
             }),
+        },
+        ...(GITHUB_CLIENT_ID &&
+            GITHUB_CLIENT_SECRET && {
+                github: {
+                    clientId: GITHUB_CLIENT_ID,
+                    clientSecret: GITHUB_CLIENT_SECRET,
+                    // GitHub accounts can keep every email private
+                    mapProfileToUser: (profile) => ({
+                        email: profile.email ?? `${profile.id}@github.placeholder.invalid`,
+                    }),
+                },
+            }),
+    },
+
+    account: {
+        accountLinking: {
+            enabled: true,
+            // Members link accounts deliberately from their profile, so the
+            // emails on their Discord and GitHub accounts needn't match
+            allowDifferentEmails: true,
         },
     },
 
@@ -98,7 +126,7 @@ export const auth = betterAuth({
                     if (!USERNAME_PATTERN.test(username)) {
                         throw new APIError("BAD_REQUEST", {
                             message:
-                                "Usernames are 2–32 characters: lowercase letters, numbers, _ and -",
+                                USERNAME_RULES,
                         });
                     }
 

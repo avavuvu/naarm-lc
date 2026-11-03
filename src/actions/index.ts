@@ -1,9 +1,9 @@
 import { ActionError, defineAction, type ActionAPIContext } from "astro:actions";
 import { z } from "astro/zod";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { doorwayState, isDoorbellOpen } from "../lib/events";
 import { db, transaction, type Tx } from "../lib/db";
-import { event, guest, rsvp } from "../lib/schema";
+import { avatar, event, guest, rsvp, user as userTable } from "../lib/schema";
 import { fromMelbourne } from "../lib/time";
 
 function requireUser(context: ActionAPIContext) {
@@ -78,6 +78,10 @@ async function findRsvp(tx: Tx, eventId: string, userId: string) {
 }
 
 const memberAtEvent = z.object({ eventId: z.string().min(1), userId: z.string().min(1) });
+
+// The browser resizes pictures to a small JPEG before uploading
+const MAX_AVATAR_BYTES = 200 * 1024;
+const isJpeg = (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
 
 export const server = {
     events: {
@@ -233,6 +237,53 @@ export const server = {
             handler: async (input, context) => {
                 requireAdmin(context);
                 await db.delete(guest).where(eq(guest.id, input.guestId));
+            },
+        }),
+    },
+
+    profile: {
+        uploadAvatar: defineAction({
+            accept: "form",
+            input: z.object({ picture: z.instanceof(File) }),
+            handler: async (input, context) => {
+                const user = requireUser(context);
+                const bytes = new Uint8Array(await input.picture.arrayBuffer());
+                if (bytes.length > MAX_AVATAR_BYTES || !isJpeg(bytes)) {
+                    throw new ActionError({ code: "BAD_REQUEST", message: "That picture couldn't be used" });
+                }
+
+                await db
+                    .insert(avatar)
+                    .values({
+                        userId: user.id,
+                        data: Buffer.from(bytes).toString("base64"),
+                        previousImage: user.image,
+                    })
+                    // Keep the original previousImage when replacing an upload
+                    .onConflictDoUpdate({
+                        target: avatar.userId,
+                        set: { data: sql`excluded.data`, updatedAt: new Date() },
+                    });
+
+                // The version in the URL lets browsers cache each picture forever
+                const image = `/avatars/${user.id}?v=${Date.now()}`;
+                await db.update(userTable).set({ image }).where(eq(userTable.id, user.id));
+                return { image };
+            },
+        }),
+
+        removeAvatar: defineAction({
+            handler: async (_input, context) => {
+                const user = requireUser(context);
+                const [removed] = await db
+                    .delete(avatar)
+                    .where(eq(avatar.userId, user.id))
+                    .returning({ previousImage: avatar.previousImage });
+                if (!removed) return;
+                await db
+                    .update(userTable)
+                    .set({ image: removed.previousImage })
+                    .where(eq(userTable.id, user.id));
             },
         }),
     },

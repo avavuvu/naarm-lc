@@ -6,8 +6,8 @@
         username: initialUsername,
     }: { name: string; username: string | null } = $props();
 
-    // Uppercase is allowed here because the server lowercases it
-    const usernamePattern = "[a-zA-Z0-9_\\-]{2,32}";
+    // Matches USERNAME_PATTERN in lib/auth.ts; uppercase is fine because the server lowercases it
+    const usernamePattern = "[a-zA-Z0-9]+([_\\-][a-zA-Z0-9]+)*";
 
     let name = $state(initialName);
     let username = $state(initialUsername ?? "");
@@ -46,7 +46,9 @@
         id="username"
         class="border px-1"
         pattern={usernamePattern}
-        title="2–32 characters: letters, numbers, _ and -"
+        minlength="3"
+        maxlength="20"
+        title="3–20 characters: letters, numbers, _ and -, starting and ending with a letter or number"
         autocapitalize="none"
         spellcheck="false"
         bind:value={username}

@@ -1,6 +1,7 @@
 ---
 import SubLayout from "../layouts/SubLayout.astro";
 import LoginForm from "../components/LoginForm.svelte";
+import { socialLogins } from "../lib/auth";
 
 export const prerender = false;
 
@@ -15,5 +16,5 @@ const error = code ? (errors[code] ?? "Something went wrong logging in. Please t
 ---
 
 <SubLayout title="Log in">
-    <LoginForm error={error} client:load />
+    <LoginForm providers={socialLogins} error={error} client:load />
 </SubLayout>
