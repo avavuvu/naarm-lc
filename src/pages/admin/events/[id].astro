@@ -1,0 +1,72 @@
+---
+import { actions } from "astro:actions";
+import SubLayout from "../../../layouts/SubLayout.astro";
+import EventForm from "../../../components/admin/EventForm.astro";
+import { attendees, eventById } from "../../../lib/events";
+
+export const prerender = false;
+
+const deleted = Astro.getActionResult(actions.events.delete);
+if (deleted && !deleted.error) return Astro.redirect("/admin/events");
+
+const updated = Astro.getActionResult(actions.events.update);
+if (updated && !updated.error) return Astro.redirect(Astro.url.pathname);
+
+const event = await eventById(Astro.params.id!);
+if (!event) return new Response("Event not found", { status: 404 });
+
+const going = await attendees(event.id);
+const error = updated?.error?.message ?? deleted?.error?.message;
+---
+
+<SubLayout title={`Admin: ${event.title}`}>
+    <p><a href="/admin/events">← all events</a></p>
+    {error && <p role="alert">{error}</p>}
+
+    <EventForm action={actions.events.update} submitLabel="save changes" event={event} />
+
+    <h2 class="pt-4">
+        Going ({going.length}{event.capacity !== null && ` of ${event.capacity}`})
+    </h2>
+    {going.length === 0 && <p>No RSVPs yet.</p>}
+    <ul class="flex flex-col gap-2 py-2">
+        {
+            going.map((member) => (
+                <li class="flex items-center gap-2">
+                    {member.image ? (
+                        <img class="w-8 h-8 border" src={member.image} alt="" />
+                    ) : (
+                        <span class="w-8 h-8 border flex items-center justify-center">
+                            {member.name.charAt(0)}
+                        </span>
+                    )}
+                    <span>{member.name}</span>
+                    {member.username && <span>@{member.username}</span>}
+                </li>
+            ))
+        }
+    </ul>
+
+    <form
+        method="POST"
+        action={actions.events.delete}
+        class="py-6"
+        onsubmit="return confirm('Delete this event and all its RSVPs?')"
+    >
+        <input type="hidden" name="eventId" value={event.id} />
+        <button>delete event</button>
+    </form>
+</SubLayout>
+
+<style>
+    a,
+    button {
+        text-decoration: underline;
+        cursor: pointer;
+    }
+
+    button {
+        border: 1px solid var(--color-primary);
+        padding: 0.25rem 0.5rem;
+    }
+</style>

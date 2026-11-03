@@ -1,0 +1,32 @@
+---
+import SubLayout from "../../../layouts/SubLayout.astro";
+import { allEvents } from "../../../lib/events";
+import { formatEventTime } from "../../../lib/time";
+
+export const prerender = false;
+
+const events = await allEvents();
+const now = new Date();
+---
+
+<SubLayout title="Admin: events">
+    <p class="py-2"><a href="/admin/events/new">+ new event</a></p>
+
+    {events.length === 0 && <p>No events yet.</p>}
+
+    <ul class="flex flex-col gap-2 py-2">
+        {
+            events.map((item) => (
+                <li>
+                    <a href={`/admin/events/${item.id}`}>{item.title}</a>
+                    {" · "}
+                    {formatEventTime(item.startsAt, item.endsAt)}
+                    {" · "}
+                    {item.going}
+                    {item.capacity !== null ? ` / ${item.capacity}` : ""} going
+                    {item.endsAt < now && " · finished"}
+                </li>
+            ))
+        }
+    </ul>
+</SubLayout>

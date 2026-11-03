@@ -1,7 +1,81 @@
 ---
+import { actions } from "astro:actions";
 import SubLayout from "../layouts/SubLayout.astro";
+import { upcomingEvents } from "../lib/events";
+import { formatEventTime } from "../lib/time";
+
+export const prerender = false;
+
+const { user } = Astro.locals;
+
+// Reload with GET after a successful RSVP so refreshing doesn't resubmit
+const rsvpResult = Astro.getActionResult(actions.events.rsvp);
+const cancelResult = Astro.getActionResult(actions.events.cancelRsvp);
+if ((rsvpResult && !rsvpResult.error) || (cancelResult && !cancelResult.error)) {
+    return Astro.redirect("/events");
+}
+const error = rsvpResult?.error?.message ?? cancelResult?.error?.message;
+
+const events = await upcomingEvents(user?.id ?? null);
 ---
 
 <SubLayout title="Events">
-    <p>This could be an events page</p>
+    {error && <p role="alert" class="py-2">{error}</p>}
+
+    {events.length === 0 && <p class="py-4">No upcoming events yet. Check the Discord for news.</p>}
+
+    <ul class="flex flex-col gap-6 py-4">
+        {
+            events.map((item) => {
+                const full = item.capacity !== null && item.going >= item.capacity;
+                return (
+                    <li class="border p-2 flex flex-col gap-1">
+                        <h2>{item.title}</h2>
+                        <p>{formatEventTime(item.startsAt, item.endsAt)}</p>
+                        {item.location && <p>{item.location}</p>}
+                        {item.description && <p class="whitespace-pre-line">{item.description}</p>}
+                        <p>
+                            {item.going} going
+                            {item.capacity !== null && ` of ${item.capacity} spots`}
+                        </p>
+
+                        {!user ? (
+                            <a href="/login">log in to RSVP</a>
+                        ) : item.isGoing ? (
+                            <form method="POST" action={actions.events.cancelRsvp}>
+                                <input type="hidden" name="eventId" value={item.id} />
+                                <span>you're going ✓</span>
+                                <button>can't make it</button>
+                            </form>
+                        ) : full ? (
+                            <p>full</p>
+                        ) : (
+                            <form method="POST" action={actions.events.rsvp}>
+                                <input type="hidden" name="eventId" value={item.id} />
+                                <button>I'm going</button>
+                            </form>
+                        )}
+                    </li>
+                );
+            })
+        }
+    </ul>
 </SubLayout>
+
+<style>
+    a,
+    button {
+        text-decoration: underline;
+        cursor: pointer;
+    }
+
+    button {
+        border: 1px solid var(--color-primary);
+        padding: 0 0.5rem;
+        margin-left: 0.5rem;
+    }
+
+    form > button:first-child {
+        margin-left: 0;
+    }
+</style>

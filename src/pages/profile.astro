@@ -1,0 +1,39 @@
+---
+import SubLayout from "../layouts/SubLayout.astro";
+import ProfileForm from "../components/ProfileForm.svelte";
+
+export const prerender = false;
+
+const { user } = Astro.locals;
+if (!user) return Astro.redirect("/login");
+
+// Phone-only Discord accounts get a placeholder address
+const email = user.email.endsWith(".invalid") ? null : user.email;
+---
+
+<SubLayout title="Profile">
+    <div class="flex flex-col gap-6 py-4">
+        <div class="flex items-center gap-4">
+            {
+                user.image ? (
+                    <img class="w-16 h-16 border" src={user.image} alt="" />
+                ) : (
+                    <div class="w-16 h-16 border flex items-center justify-center text-2xl">
+                        {user.name.charAt(0)}
+                    </div>
+                )
+            }
+            <div>
+                <p>{user.name}</p>
+                {user.username && <p>@{user.username}</p>}
+                {email && <p>{email}</p>}
+            </div>
+        </div>
+
+        {user.role === "admin" && <p><a class="underline" href="/admin/events">admin: manage events</a></p>}
+
+        {!user.username && <p>Choose a username so other members can find you.</p>}
+
+        <ProfileForm name={user.name} username={user.username ?? null} client:load />
+    </div>
+</SubLayout>
