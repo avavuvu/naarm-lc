@@ -2,9 +2,10 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Logo from "../components/Logo.svelte";
 import Footer from "../components/Footer.svelte";
+import NextEvent from "../components/events/NextEventIsland.astro";
 ---
 
-<BaseLayout title="Live Coders Naarm">
+<BaseLayout title="live coders naarm">
     <main class="max-w-4xl mx-auto">
         <div class="">
             <Logo variant="large" client:load />
@@ -14,39 +15,42 @@ import Footer from "../components/Footer.svelte";
                 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
             </span>
         </div>
-        <div class="px-4 min-h-[30vh]">
-            <div class="px-4">
+        <div class="px-8 pt-8 pb-16 min-h-[50vh] grid gap-16 sm:grid-cols-[1fr_22rem] items-start">
+            <div class="flex flex-col gap-10">
                 <div>
-                    <h1>Live Coders Naarm</h1>
+                    <h1>live coders naarm</h1>
                     <p>
-                        Creative coding meetups for everyone in Melbourne,
-                        Australia
+                        creative coding meetups for everyone in melbourne,
+                        australia
                     </p>
                 </div>
 
-                <nav class="text-right">
-                    <ul>
+                <nav>
+                    <ul class="flex flex-col gap-1">
                         <li>
-                            <a href="/discord"> join the discord </a>
+                            <a href="/discord">join the discord</a>
                         </li>
                         <li>
-                            <a href="/events"> events </a>
+                            <a href="/events">events</a>
                         </li>
-
                         <li>
-                            <a href="/about"> about </a>
+                            <a href="/about">about</a>
                         </li>
-
                         <li>
-                            <a href="/tools"> tools </a>
+                            <a href="/tools">tools</a>
                         </li>
-
                         <li>
-                            <a href="/profile"> account </a>
+                            <a href="/profile">account</a>
                         </li>
                     </ul>
                 </nav>
             </div>
+
+            <NextEvent server:defer>
+                <section slot="fallback" class="border bg-surface p-6 min-h-48">
+                    <h2>next event</h2>
+                </section>
+            </NextEvent>
         </div>
     </main>
     <div class="hidden sm:block">
@@ -58,10 +62,3 @@ import Footer from "../components/Footer.svelte";
         </div>
     </div>
 </BaseLayout>
-
-<style>
-    a {
-        color: var(--color-primary);
-        text-decoration: underline;
-    }
-</style>

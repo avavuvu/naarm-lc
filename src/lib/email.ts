@@ -9,7 +9,6 @@ interface Email {
     html: string;
 }
 
-// https://resend.com/docs/api-reference/emails/send-email
 export async function sendEmail(email: Email) {
     const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -27,20 +26,37 @@ export async function sendEmail(email: Email) {
 const escapeHtml = (text: string) =>
     text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 
-export function magicLinkEmail(to: string, url: string): Email {
+export function magicLinkEmail(to: string, url: string, eventTitle: string | null): Email {
+    if (eventTitle) {
+        return {
+            to,
+            subject: `confirm your rsvp: ${eventTitle}`,
+            text: [
+                `tap the link to confirm you're coming to ${eventTitle}:`,
+                "",
+                url,
+                "",
+                "it works once and expires in 5 minutes.",
+                "if you didn't rsvp, you can ignore this email.",
+            ].join("\n"),
+            html: `<p>tap the link to confirm you're coming to ${escapeHtml(eventTitle)}:</p>
+<p><a href="${escapeHtml(url)}">confirm my rsvp</a></p>
+<p>it works once and expires in 5 minutes.<br>if you didn't rsvp, you can ignore this email.</p>`,
+        };
+    }
     return {
         to,
-        subject: "Your Live Coders Naarm login link",
+        subject: "your live coders naarm login link",
         text: [
-            "Here's your link to log in to Live Coders Naarm:",
+            "here's your link to log in to live coders naarm:",
             "",
             url,
             "",
-            "It works once and expires in 5 minutes.",
-            "If you didn't ask for it, you can ignore this email.",
+            "it works once and expires in 5 minutes.",
+            "if you didn't ask for it, you can ignore this email.",
         ].join("\n"),
-        html: `<p>Here's your link to log in to Live Coders Naarm:</p>
-<p><a href="${escapeHtml(url)}">Log in</a></p>
-<p>It works once and expires in 5 minutes.<br>If you didn't ask for it, you can ignore this email.</p>`,
+        html: `<p>here's your link to log in to live coders naarm:</p>
+<p><a href="${escapeHtml(url)}">log in</a></p>
+<p>it works once and expires in 5 minutes.<br>if you didn't ask for it, you can ignore this email.</p>`,
     };
 }

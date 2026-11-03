@@ -1,0 +1,39 @@
+---
+import { eq } from "drizzle-orm";
+import SubLayout from "../layouts/SubLayout.astro";
+import { verifyConfirm } from "../lib/confirm";
+import { db } from "../lib/db";
+import { eventById, rsvpTo } from "../lib/events";
+import { eventPath } from "../lib/paths";
+import { user as userTable } from "../lib/schema";
+
+export const prerender = false;
+
+const { user } = Astro.locals;
+if (!user) return Astro.redirect("/login");
+
+const confirmed = verifyConfirm(user.email, Astro.url.searchParams);
+if (!confirmed) return Astro.redirect("/profile");
+
+if (confirmed.name !== user.name) {
+    await db.update(userTable).set({ name: confirmed.name }).where(eq(userTable.id, user.id));
+}
+
+const event = confirmed.eventId ? await eventById(Number(confirmed.eventId)) : null;
+if (!event) return Astro.redirect("/profile");
+
+const result = await rsvpTo(event.id, user.id);
+if (result === "ok") return Astro.redirect(eventPath(event));
+
+const messages = {
+    full: "sorry, that event filled up before you confirmed.",
+    finished: "that event has already finished.",
+    not_found: "that event doesn't exist any more.",
+    gig: "that event is a gig. use its link to get tickets.",
+};
+---
+
+<SubLayout title="rsvp">
+    <p class="py-4">{messages[result]}</p>
+    <p><a href="/events">see upcoming events</a></p>
+</SubLayout>

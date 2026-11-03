@@ -1,60 +1,17 @@
 ---
-import { eq } from "drizzle-orm";
 import SubLayout from "../layouts/SubLayout.astro";
-import ProfileForm from "../components/ProfileForm.svelte";
-import Avatar from "../components/Avatar.svelte";
-import AvatarUpload from "../components/AvatarUpload.svelte";
-import ConnectedAccounts from "../components/ConnectedAccounts.svelte";
-import { socialLogins } from "../lib/auth";
-import { db } from "../lib/db";
-import { account } from "../lib/schema";
+import ProfileForm from "../components/account/ProfileForm.svelte";
 
 export const prerender = false;
 
 const { user } = Astro.locals;
 if (!user) return Astro.redirect("/login");
 
-const connected = (
-    await db.select({ providerId: account.providerId }).from(account).where(eq(account.userId, user.id))
-).map((row) => row.providerId);
-
-// Phone-only Discord and private GitHub accounts get a placeholder address
 const email = user.email.endsWith(".invalid") ? null : user.email;
-const hasUpload = user.image?.startsWith("/avatars/") ?? false;
-
-// Better Auth sends people back here with ?error= when connecting an account fails
-const linkErrors: Record<string, string> = {
-    account_already_linked_to_different_user:
-        "That account is already connected to a different member here.",
-};
-const code = Astro.url.searchParams.get("error");
-const linkError = code ? (linkErrors[code] ?? "Couldn't connect that account. Please try again.") : "";
 ---
 
-<SubLayout title="Profile">
-    <div class="flex flex-col gap-6 py-4">
-        <div class="flex items-center gap-4">
-            <Avatar name={user.name} image={user.image} size="4rem" />
-            <div>
-                <p>{user.name}</p>
-                {user.username && <p>@{user.username}</p>}
-                {email && <p>{email}</p>}
-            </div>
-        </div>
-
-        <AvatarUpload hasUpload={hasUpload} client:load />
-
-        {user.role === "admin" && <p><a class="underline" href="/admin/events">admin: manage events</a></p>}
-
-        {!user.username && <p>Choose a username so other members can find you.</p>}
-
-        <ProfileForm name={user.name} username={user.username ?? null} client:load />
-
-        <section class="flex flex-col gap-2">
-            <h2>connected accounts</h2>
-            <p class="text-sm">You can log in with any account connected here.</p>
-            {linkError && <p role="alert">{linkError}</p>}
-            <ConnectedAccounts providers={socialLogins} connected={connected} client:load />
-        </section>
+<SubLayout title="profile" crumbs={[{ label: user.name }]}>
+    <div class="flex flex-col items-start gap-8 py-6">
+        <ProfileForm name={user.name} email={email} admin={user.role === "admin"} client:load />
     </div>
 </SubLayout>

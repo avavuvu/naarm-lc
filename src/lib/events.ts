@@ -1,82 +1,150 @@
-import { and, asc, desc, eq, getTableColumns, gt, lte, sql } from "drizzle-orm";
-import { db } from "./db";
+import { and, asc, eq, getTableColumns, gt, lte, sql, type SQL } from "drizzle-orm";
+import { db, type Tx } from "./db";
+import { eventPath } from "./paths";
 import { event, guest, rsvp, user } from "./schema";
 
-/** The doorbell and doorway open this long before an event starts */
 export const DOORBELL_OPENS_MS = 30 * 60 * 1000;
+
+export type RsvpStatus = "going" | "at_door" | "present";
+
+export function rsvpStatus(row: { arrivedAt: Date | null; welcomedAt: Date | null }): RsvpStatus {
+    if (row.welcomedAt) return "present";
+    if (row.arrivedAt) return "at_door";
+    return "going";
+}
 
 export function isDoorbellOpen(target: { startsAt: Date; endsAt: Date }, now = new Date()) {
     return target.startsAt.getTime() - DOORBELL_OPENS_MS <= now.getTime() && now < target.endsAt;
 }
 
-// Drizzle leaves columns unqualified in single-table queries, so inside a
-// subquery a bare "id" would mean the subquery's own table. Spell it out.
+export function isFull(target: { capacity: number | null; spotsTaken: number }) {
+    return target.capacity !== null && target.spotsTaken >= target.capacity;
+}
+
+export type EventKind = "meetup" | "gig";
+
+export type EventAction = "ended" | "tickets" | "login" | "rsvp" | "full" | "going" | "ring" | RsvpStatus;
+
+export function eventAction(
+    target: {
+        kind: EventKind;
+        startsAt: Date;
+        endsAt: Date;
+        capacity: number | null;
+        spotsTaken: number;
+        myStatus: RsvpStatus | null;
+    },
+    loggedIn: boolean,
+): EventAction {
+    if (target.endsAt <= new Date()) return "ended";
+    if (target.kind === "gig") return "tickets";
+    if (!loggedIn) return isFull(target) ? "full" : "login";
+    if (target.myStatus === "at_door" || target.myStatus === "present") return target.myStatus;
+    if (isDoorbellOpen(target)) return "ring";
+    if (target.myStatus === "going") return "going";
+    if (isFull(target)) return "full";
+    return "rsvp";
+}
+
 const eventIdColumn = sql.raw(`"event"."id"`);
 
-// Members who RSVP'd plus guests: everyone taking up a spot
 const spotsTaken = sql<number>`cast(
     (select count(*) from ${rsvp} where ${rsvp.eventId} = ${eventIdColumn}) +
     (select count(*) from ${guest} where ${guest.eventId} = ${eventIdColumn})
 as int)`;
 
-/** Events that haven't finished yet, soonest first, with `userId`'s RSVP status */
-export async function upcomingEvents(userId: string | null) {
-    return db
+export async function lockEvent(tx: Tx, id: number) {
+    const [target] = await tx
+        .select({ kind: event.kind, capacity: event.capacity, startsAt: event.startsAt, endsAt: event.endsAt })
+        .from(event)
+        .where(eq(event.id, id))
+        .for("update");
+    if (!target) return null;
+    const [counted] = await tx.select({ spotsTaken }).from(event).where(eq(event.id, id));
+    return { ...target, spotsTaken: counted.spotsTaken };
+}
+
+export type RsvpResult = "ok" | "not_found" | "gig" | "finished" | "full";
+
+export async function rsvpTo(eventId: number, userId: string): Promise<RsvpResult> {
+    return db.transaction(async (tx) => {
+        const target = await lockEvent(tx, eventId);
+        if (!target) return "not_found";
+        if (target.kind !== "meetup") return "gig";
+        if (target.endsAt < new Date()) return "finished";
+        const [existing] = await tx
+            .select({ userId: rsvp.userId })
+            .from(rsvp)
+            .where(and(eq(rsvp.eventId, eventId), eq(rsvp.userId, userId)));
+        if (existing) return "ok";
+        if (isFull(target)) return "full";
+        await tx.insert(rsvp).values({ eventId, userId });
+        return "ok";
+    });
+}
+
+async function eventsForViewer(userId: string | null, where: SQL | undefined) {
+    const rows = await db
         .select({
             ...getTableColumns(event),
-            going: spotsTaken,
-            myStatus: sql<"going" | "at_door" | "present" | null>`(
-                select ${rsvp.status} from ${rsvp}
-                where ${rsvp.eventId} = ${eventIdColumn} and ${rsvp.userId} = ${userId ?? ""}
-            )`,
+            spotsTaken,
+            rsvpAt: rsvp.createdAt,
+            arrivedAt: rsvp.arrivedAt,
+            welcomedAt: rsvp.welcomedAt,
         })
         .from(event)
-        .where(gt(event.endsAt, new Date()))
+        .leftJoin(rsvp, and(eq(rsvp.eventId, event.id), eq(rsvp.userId, userId ?? "")))
+        .where(where)
         .orderBy(asc(event.startsAt));
+    return rows.map(({ rsvpAt, arrivedAt, welcomedAt, privateLocation, ...item }) => ({
+        ...item,
+        location: (rsvpAt && privateLocation) || item.location,
+        locationHidden: !rsvpAt && Boolean(privateLocation),
+        myStatus: rsvpAt ? rsvpStatus({ arrivedAt, welcomedAt }) : null,
+    }));
 }
 
-/** Every event, newest first, for admins */
-export async function allEvents() {
-    return db
-        .select({ ...getTableColumns(event), going: spotsTaken })
-        .from(event)
-        .orderBy(desc(event.startsAt));
+export function upcomingEvents(userId: string | null) {
+    return eventsForViewer(userId, gt(event.endsAt, new Date()));
 }
 
-export async function eventById(id: string) {
+export async function nextMeetup(userId: string | null) {
+    const [found] = await eventsForViewer(userId, and(gt(event.endsAt, new Date()), eq(event.kind, "meetup")));
+    return found ?? null;
+}
+
+export async function pastEvents() {
+    const events = await eventsForViewer(null, lte(event.endsAt, new Date()));
+    return events.reverse();
+}
+
+export async function eventForViewer(id: number, userId: string | null) {
+    const [found] = await eventsForViewer(userId, eq(event.id, id));
+    return found ?? null;
+}
+
+export type ViewerEvent = NonNullable<Awaited<ReturnType<typeof eventForViewer>>>;
+
+export async function eventById(id: number) {
     const [found] = await db
-        .select({ ...getTableColumns(event), going: spotsTaken })
+        .select({ ...getTableColumns(event), spotsTaken })
         .from(event)
         .where(eq(event.id, id));
     return found ?? null;
 }
 
-/** The event whose doorbell is open now, if any (the earliest, if several overlap) */
 export async function currentEvent() {
-    const now = new Date();
-    const [found] = await db
-        .select({ id: event.id })
-        .from(event)
-        .where(
-            and(
-                lte(event.startsAt, new Date(now.getTime() + DOORBELL_OPENS_MS)),
-                gt(event.endsAt, now),
-            ),
-        )
-        .orderBy(asc(event.startsAt))
-        .limit(1);
-    return found?.id ?? null;
+    const events = await upcomingEvents(null);
+    return events.find((item) => item.kind === "meetup" && isDoorbellOpen(item)) ?? null;
 }
 
-/** Members who RSVP'd, in the order they did, with where they're up to */
-export async function attendees(eventId: string) {
-    return db
+export async function attendees(eventId: number) {
+    const rows = await db
         .select({
             id: user.id,
             name: user.name,
-            username: user.username,
-            image: user.image,
-            status: rsvp.status,
+            email: user.email,
+            rsvpAt: rsvp.createdAt,
             arrivedAt: rsvp.arrivedAt,
             welcomedAt: rsvp.welcomedAt,
         })
@@ -84,33 +152,27 @@ export async function attendees(eventId: string) {
         .innerJoin(user, eq(user.id, rsvp.userId))
         .where(eq(rsvp.eventId, eventId))
         .orderBy(asc(rsvp.createdAt));
+    return rows.map((row) => ({ ...row, status: rsvpStatus(row) }));
 }
 
-export async function guests(eventId: string) {
+export async function guests(eventId: number) {
     return db
-        .select({ id: guest.id, name: guest.name, createdAt: guest.createdAt })
+        .select({ id: guest.id, name: guest.name })
         .from(guest)
         .where(eq(guest.eventId, eventId))
         .orderBy(asc(guest.createdAt));
 }
 
-/** Everything the doorway shows, in one go */
-export async function doorwayState(eventId: string) {
+export async function doorwayState(eventId: number) {
     const target = await eventById(eventId);
     if (!target) return null;
     const [members, guestList] = await Promise.all([attendees(eventId), guests(eventId)]);
     return {
-        event: {
-            id: target.id,
-            title: target.title,
-            capacity: target.capacity,
-            startsAt: target.startsAt.toISOString(),
-            endsAt: target.endsAt.toISOString(),
-        },
-        spotsTaken: target.going,
+        event: { id: target.id, title: target.title, capacity: target.capacity, path: eventPath(target) },
+        spotsTaken: target.spotsTaken,
         atDoor: members
             .filter((member) => member.status === "at_door")
-            .sort((a, b) => (a.arrivedAt?.getTime() ?? 0) - (b.arrivedAt?.getTime() ?? 0)),
+            .sort((a, b) => a.arrivedAt!.getTime() - b.arrivedAt!.getTime()),
         coming: members.filter((member) => member.status === "going"),
         present: members.filter((member) => member.status === "present"),
         guests: guestList,

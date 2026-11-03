@@ -1,0 +1,15 @@
+---
+import SubLayout from "../../layouts/SubLayout.astro";
+import EventsIndex from "../../components/events/EventsIndex.svelte";
+import { pastEvents, upcomingEvents } from "../../lib/events";
+
+export const prerender = false;
+
+const { user } = Astro.locals;
+const admin = user?.role === "admin";
+const [upcoming, past] = await Promise.all([upcomingEvents(user?.id ?? null), admin ? pastEvents() : []]);
+---
+
+<SubLayout title="events">
+    <EventsIndex upcoming={upcoming} past={past} admin={admin} />
+</SubLayout>

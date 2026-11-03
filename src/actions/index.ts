@@ -1,87 +1,90 @@
 import { ActionError, defineAction, type ActionAPIContext } from "astro:actions";
 import { z } from "astro/zod";
-import { and, count, eq, sql } from "drizzle-orm";
-import { doorwayState, isDoorbellOpen } from "../lib/events";
-import { db, transaction, type Tx } from "../lib/db";
-import { avatar, event, guest, rsvp, user as userTable } from "../lib/schema";
+import { and, eq, isNull } from "drizzle-orm";
+import { db, type Tx } from "../lib/db";
+import { doorwayState, isDoorbellOpen, isFull, lockEvent, rsvpTo, type RsvpResult } from "../lib/events";
+import { event, guest, rsvp } from "../lib/schema";
 import { fromMelbourne } from "../lib/time";
 
 function requireUser(context: ActionAPIContext) {
     const { user } = context.locals;
-    if (!user) throw new ActionError({ code: "UNAUTHORIZED", message: "Log in first" });
+    if (!user) throw new ActionError({ code: "UNAUTHORIZED", message: "log in first" });
     return user;
 }
 
 function requireAdmin(context: ActionAPIContext) {
     const user = requireUser(context);
-    if (user.role !== "admin") throw new ActionError({ code: "FORBIDDEN", message: "Admins only" });
+    if (user.role !== "admin") throw new ActionError({ code: "FORBIDDEN", message: "admins only" });
     return user;
 }
 
-// Empty form fields arrive as null
 const eventFields = z.object({
+    kind: z.enum(["meetup", "gig"]),
     title: z.string().trim().min(1).max(200),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     startTime: z.string().regex(/^\d{2}:\d{2}$/),
     endTime: z.string().regex(/^\d{2}:\d{2}$/),
     location: z.string().trim().max(200).nullable(),
+    privateLocation: z.string().trim().max(300).nullable(),
     capacity: z.number().int().min(1).nullable(),
     description: z.string().trim().max(5000).nullable(),
+    url: z.url({ protocol: /^https?$/, error: "the link needs to be a full url, like https://…" }).max(500).nullable(),
+    image: z
+        .string()
+        .trim()
+        .regex(/^(\/|https:\/\/)\S+$/, { error: "the image needs to be a path like /events/poster.png, or a url" })
+        .max(500)
+        .nullable(),
 });
 
 function toEventRow(input: z.infer<typeof eventFields>) {
+    const gig = input.kind === "gig";
+    if (gig && !input.url) {
+        throw new ActionError({ code: "BAD_REQUEST", message: "gigs need a ticket link" });
+    }
     const startsAt = fromMelbourne(input.date, input.startTime);
     let endsAt = fromMelbourne(input.date, input.endTime);
-    // An end time before the start means it finishes after midnight
     if (endsAt <= startsAt) endsAt = new Date(endsAt.getTime() + 24 * 60 * 60 * 1000);
     return {
+        kind: input.kind,
         title: input.title,
         startsAt,
         endsAt,
         location: input.location || null,
-        capacity: input.capacity,
+        privateLocation: gig ? null : input.privateLocation || null,
+        capacity: gig ? null : input.capacity,
         description: input.description || null,
+        url: gig ? input.url : null,
+        image: input.image || null,
     };
 }
 
-const eventId = z.object({ eventId: z.string().min(1) });
+const id = z.coerce.number().int().positive();
 
-/**
- * Locks the event row for the rest of the transaction, so concurrent requests
- * wait their turn and two people can't both take the last spot.
- */
-async function lockEvent(tx: Tx, id: string) {
-    const [target] = await tx
-        .select({ capacity: event.capacity, startsAt: event.startsAt, endsAt: event.endsAt })
-        .from(event)
-        .where(eq(event.id, id))
-        .for("update");
-    if (!target) throw new ActionError({ code: "NOT_FOUND", message: "Event not found" });
+const eventId = z.object({ eventId: id });
+
+const rsvpErrors: Record<Exclude<RsvpResult, "ok">, ConstructorParameters<typeof ActionError>[0]> = {
+    not_found: { code: "NOT_FOUND", message: "event not found" },
+    gig: { code: "BAD_REQUEST", message: "this is a gig. use its link to get tickets" },
+    finished: { code: "BAD_REQUEST", message: "that event has finished" },
+    full: { code: "CONFLICT", message: "sorry, that event is full" },
+};
+
+const isRsvp = (eventId: number, userId: string) => and(eq(rsvp.eventId, eventId), eq(rsvp.userId, userId));
+
+async function lockedEvent(tx: Tx, id: number) {
+    const target = await lockEvent(tx, id);
+    if (!target) throw new ActionError({ code: "NOT_FOUND", message: "event not found" });
     return target;
 }
 
-async function hasSpace(tx: Tx, id: string, capacity: number | null) {
-    if (capacity === null) return true;
-    const [[members], [guests]] = await Promise.all([
-        tx.select({ n: count() }).from(rsvp).where(eq(rsvp.eventId, id)),
-        tx.select({ n: count() }).from(guest).where(eq(guest.eventId, id)),
-    ]);
-    return members.n + guests.n < capacity;
-}
-
-async function findRsvp(tx: Tx, eventId: string, userId: string) {
+async function findRsvp(tx: Tx, eventId: number, userId: string) {
     const [found] = await tx
-        .select({ status: rsvp.status })
+        .select({ arrivedAt: rsvp.arrivedAt, welcomedAt: rsvp.welcomedAt })
         .from(rsvp)
-        .where(and(eq(rsvp.eventId, eventId), eq(rsvp.userId, userId)));
+        .where(isRsvp(eventId, userId));
     return found ?? null;
 }
-
-const memberAtEvent = z.object({ eventId: z.string().min(1), userId: z.string().min(1) });
-
-// The browser resizes pictures to a small JPEG before uploading
-const MAX_AVATAR_BYTES = 200 * 1024;
-const isJpeg = (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
 
 export const server = {
     events: {
@@ -93,7 +96,7 @@ export const server = {
                 const [created] = await db
                     .insert(event)
                     .values({ ...toEventRow(input), createdBy: admin.id })
-                    .returning({ id: event.id });
+                    .returning({ id: event.id, title: event.title });
                 return created;
             },
         }),
@@ -107,8 +110,8 @@ export const server = {
                     .update(event)
                     .set(toEventRow(input))
                     .where(eq(event.id, input.eventId))
-                    .returning({ id: event.id });
-                if (!updated) throw new ActionError({ code: "NOT_FOUND", message: "Event not found" });
+                    .returning({ id: event.id, title: event.title });
+                if (!updated) throw new ActionError({ code: "NOT_FOUND", message: "event not found" });
                 return updated;
             },
         }),
@@ -127,17 +130,8 @@ export const server = {
             input: eventId,
             handler: async (input, context) => {
                 const user = requireUser(context);
-                await transaction(async (tx) => {
-                    const target = await lockEvent(tx, input.eventId);
-                    if (target.endsAt < new Date()) {
-                        throw new ActionError({ code: "BAD_REQUEST", message: "That event has finished" });
-                    }
-                    if (await findRsvp(tx, input.eventId, user.id)) return;
-                    if (!(await hasSpace(tx, input.eventId, target.capacity))) {
-                        throw new ActionError({ code: "CONFLICT", message: "Sorry, that event is full" });
-                    }
-                    await tx.insert(rsvp).values({ eventId: input.eventId, userId: user.id });
-                });
+                const result = await rsvpTo(input.eventId, user.id);
+                if (result !== "ok") throw new ActionError(rsvpErrors[result]);
             },
         }),
 
@@ -148,13 +142,7 @@ export const server = {
                 const user = requireUser(context);
                 await db
                     .delete(rsvp)
-                    .where(
-                        and(
-                            eq(rsvp.eventId, input.eventId),
-                            eq(rsvp.userId, user.id),
-                            eq(rsvp.status, "going"),
-                        ),
-                    );
+                    .where(and(isRsvp(input.eventId, user.id), isNull(rsvp.arrivedAt), isNull(rsvp.welcomedAt)));
             },
         }),
 
@@ -163,39 +151,34 @@ export const server = {
             input: eventId,
             handler: async (input, context) => {
                 const user = requireUser(context);
-                await transaction(async (tx) => {
-                    const target = await lockEvent(tx, input.eventId);
+                await db.transaction(async (tx) => {
+                    const target = await lockedEvent(tx, input.eventId);
+                    if (target.kind !== "meetup") throw new ActionError(rsvpErrors.gig);
                     if (!isDoorbellOpen(target)) {
                         throw new ActionError({
                             code: "BAD_REQUEST",
-                            message: "The doorbell opens 30 minutes before the event starts",
+                            message: "the doorbell opens 30 minutes before the event starts",
                         });
                     }
 
                     const existing = await findRsvp(tx, input.eventId, user.id);
-                    if (existing?.status === "at_door" || existing?.status === "present") return;
+                    if (existing?.arrivedAt || existing?.welcomedAt) return;
 
                     if (existing) {
                         await tx
                             .update(rsvp)
-                            .set({ status: "at_door", arrivedAt: new Date() })
-                            .where(and(eq(rsvp.eventId, input.eventId), eq(rsvp.userId, user.id)));
+                            .set({ arrivedAt: new Date() })
+                            .where(isRsvp(input.eventId, user.id));
                         return;
                     }
 
-                    // Walk-ins without an RSVP get a spot if there's one left
-                    if (!(await hasSpace(tx, input.eventId, target.capacity))) {
+                    if (isFull(target)) {
                         throw new ActionError({
                             code: "CONFLICT",
-                            message: "Sorry, the event is full. Have a word with whoever's at the door.",
+                            message: "sorry, the event is full. have a word with whoever's at the door.",
                         });
                     }
-                    await tx.insert(rsvp).values({
-                        eventId: input.eventId,
-                        userId: user.id,
-                        status: "at_door",
-                        arrivedAt: new Date(),
-                    });
+                    await tx.insert(rsvp).values({ eventId: input.eventId, userId: user.id, arrivedAt: new Date() });
                 });
             },
         }),
@@ -207,83 +190,37 @@ export const server = {
             handler: async (input, context) => {
                 requireAdmin(context);
                 const state = await doorwayState(input.eventId);
-                if (!state) throw new ActionError({ code: "NOT_FOUND", message: "Event not found" });
+                if (!state) throw new ActionError({ code: "NOT_FOUND", message: "event not found" });
                 return state;
             },
         }),
 
         welcome: defineAction({
-            input: memberAtEvent,
+            input: z.object({ eventId: id, userId: z.string().min(1) }),
             handler: async (input, context) => {
                 requireAdmin(context);
-                await db
+                const [welcomed] = await db
                     .update(rsvp)
-                    .set({ status: "present", welcomedAt: new Date() })
-                    .where(and(eq(rsvp.eventId, input.eventId), eq(rsvp.userId, input.userId)));
+                    .set({ welcomedAt: new Date() })
+                    .where(isRsvp(input.eventId, input.userId))
+                    .returning({ userId: rsvp.userId });
+                if (!welcomed) throw new ActionError({ code: "NOT_FOUND", message: "they haven't rsvp'd" });
             },
         }),
 
         addGuest: defineAction({
-            input: z.object({ eventId: z.string().min(1), name: z.string().trim().min(1).max(64) }),
+            input: z.object({ eventId: id, name: z.string().trim().min(1).max(64) }),
             handler: async (input, context) => {
                 const admin = requireAdmin(context);
-                // Guests take up a spot, but the admin at the door can go over capacity
                 await db.insert(guest).values({ eventId: input.eventId, name: input.name, addedBy: admin.id });
             },
         }),
 
         removeGuest: defineAction({
-            input: z.object({ guestId: z.string().min(1) }),
+            input: z.object({ guestId: id }),
             handler: async (input, context) => {
                 requireAdmin(context);
                 await db.delete(guest).where(eq(guest.id, input.guestId));
-            },
-        }),
-    },
-
-    profile: {
-        uploadAvatar: defineAction({
-            accept: "form",
-            input: z.object({ picture: z.instanceof(File) }),
-            handler: async (input, context) => {
-                const user = requireUser(context);
-                const bytes = new Uint8Array(await input.picture.arrayBuffer());
-                if (bytes.length > MAX_AVATAR_BYTES || !isJpeg(bytes)) {
-                    throw new ActionError({ code: "BAD_REQUEST", message: "That picture couldn't be used" });
-                }
-
-                await db
-                    .insert(avatar)
-                    .values({
-                        userId: user.id,
-                        data: Buffer.from(bytes).toString("base64"),
-                        previousImage: user.image,
-                    })
-                    // Keep the original previousImage when replacing an upload
-                    .onConflictDoUpdate({
-                        target: avatar.userId,
-                        set: { data: sql`excluded.data`, updatedAt: new Date() },
-                    });
-
-                // The version in the URL lets browsers cache each picture forever
-                const image = `/avatars/${user.id}?v=${Date.now()}`;
-                await db.update(userTable).set({ image }).where(eq(userTable.id, user.id));
-                return { image };
-            },
-        }),
-
-        removeAvatar: defineAction({
-            handler: async (_input, context) => {
-                const user = requireUser(context);
-                const [removed] = await db
-                    .delete(avatar)
-                    .where(eq(avatar.userId, user.id))
-                    .returning({ previousImage: avatar.previousImage });
-                if (!removed) return;
-                await db
-                    .update(userTable)
-                    .set({ image: removed.previousImage })
-                    .where(eq(userTable.id, user.id));
             },
         }),
     },

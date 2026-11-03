@@ -21,17 +21,11 @@ export default defineConfig({
         schema: {
             DATABASE_URL: envField.string({ context: "server", access: "secret" }),
             BETTER_AUTH_SECRET: envField.string({ context: "server", access: "secret" }),
-            // Set BETTER_AUTH_URL everywhere except deploy previews, which use BETTER_AUTH_PREVIEW_HOSTS
             BETTER_AUTH_URL: envField.string({ context: "server", access: "secret", optional: true }),
-            BETTER_AUTH_PREVIEW_HOSTS: envField.string({ context: "server", access: "secret", optional: true }),
-            OAUTH_PROXY_PRODUCTION_URL: envField.string({ context: "server", access: "secret", optional: true }),
-            OAUTH_PROXY_SECRET: envField.string({ context: "server", access: "secret", optional: true }),
+            DISCORD_CLIENT_ID: envField.string({ context: "server", access: "secret", optional: true }),
+            DISCORD_CLIENT_SECRET: envField.string({ context: "server", access: "secret", optional: true }),
             RESEND_API_KEY: envField.string({ context: "server", access: "secret", optional: true }),
             EMAIL_FROM: envField.string({ context: "server", access: "secret", optional: true }),
-            DISCORD_CLIENT_ID: envField.string({ context: "server", access: "secret" }),
-            DISCORD_CLIENT_SECRET: envField.string({ context: "server", access: "secret" }),
-            GITHUB_CLIENT_ID: envField.string({ context: "server", access: "secret", optional: true }),
-            GITHUB_CLIENT_SECRET: envField.string({ context: "server", access: "secret", optional: true }),
         },
     },
 

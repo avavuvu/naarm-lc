@@ -1,22 +1,25 @@
 import { index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 
+const time = (name: string) => timestamp(name, { withTimezone: true });
+
 export const event = pgTable(
     "event",
     {
-        id: text("id")
-            .primaryKey()
-            .$defaultFn(() => crypto.randomUUID()),
+        id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+        kind: text("kind", { enum: ["meetup", "gig"] }).default("meetup").notNull(),
         title: text("title").notNull(),
         description: text("description"),
         location: text("location"),
-        startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-        endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
-        // null means no limit
+        privateLocation: text("private_location"),
+        url: text("url"),
+        image: text("image"),
+        startsAt: time("starts_at").notNull(),
+        endsAt: time("ends_at").notNull(),
         capacity: integer("capacity"),
         createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
-        createdAt: timestamp("created_at").defaultNow().notNull(),
-        updatedAt: timestamp("updated_at")
+        createdAt: time("created_at").defaultNow().notNull(),
+        updatedAt: time("updated_at")
             .defaultNow()
             .$onUpdate(() => new Date())
             .notNull(),
@@ -27,19 +30,15 @@ export const event = pgTable(
 export const rsvp = pgTable(
     "rsvp",
     {
-        eventId: text("event_id")
+        eventId: integer("event_id")
             .notNull()
             .references(() => event.id, { onDelete: "cascade" }),
         userId: text("user_id")
             .notNull()
             .references(() => user.id, { onDelete: "cascade" }),
-        // going → at_door (rang the doorbell) → present (welcomed in)
-        status: text("status", { enum: ["going", "at_door", "present"] })
-            .default("going")
-            .notNull(),
-        arrivedAt: timestamp("arrived_at", { withTimezone: true }),
-        welcomedAt: timestamp("welcomed_at", { withTimezone: true }),
-        createdAt: timestamp("created_at").defaultNow().notNull(),
+        arrivedAt: time("arrived_at"),
+        welcomedAt: time("welcomed_at"),
+        createdAt: time("created_at").defaultNow().notNull(),
     },
     (table) => [
         primaryKey({ columns: [table.eventId, table.userId] }),
@@ -47,19 +46,16 @@ export const rsvp = pgTable(
     ],
 );
 
-// +1s and non-members, added by an admin at the door. They take up a spot.
 export const guest = pgTable(
     "guest",
     {
-        id: text("id")
-            .primaryKey()
-            .$defaultFn(() => crypto.randomUUID()),
-        eventId: text("event_id")
+        id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+        eventId: integer("event_id")
             .notNull()
             .references(() => event.id, { onDelete: "cascade" }),
         name: text("name").notNull(),
         addedBy: text("added_by").references(() => user.id, { onDelete: "set null" }),
-        createdAt: timestamp("created_at").defaultNow().notNull(),
+        createdAt: time("created_at").defaultNow().notNull(),
     },
     (table) => [index("guest_eventId_idx").on(table.eventId)],
 );

@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793671228017,
-      "tag": "0000_aspiring_wallflower",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1793672204441,
-      "tag": "0001_ambitious_wrecking_crew",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1793673150014,
-      "tag": "0002_shallow_dreaming_celestial",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1793674011221,
-      "tag": "0003_vengeful_matthew_murdock",
+      "when": 1793686825899,
+      "tag": "0000_ordinary_scarlet_spider",
       "breakpoints": true
     }
   ]

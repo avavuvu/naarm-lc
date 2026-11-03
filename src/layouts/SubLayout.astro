@@ -2,17 +2,19 @@
 import BaseLayout from "./BaseLayout.astro";
 import Logo from "../components/Logo.svelte";
 import Footer from "../components/Footer.svelte";
+import Breadcrumbs, { type Crumb } from "../components/Breadcrumbs.svelte";
 
 interface Props {
     title: string;
+    crumbs?: Crumb[];
 }
 
-const { title } = Astro.props;
+const { title, crumbs = [] } = Astro.props;
 ---
 
 <BaseLayout title={title}>
     <main class="max-w-4xl mx-auto">
-        <div class="absolute sm:relative -z-10">
+        <div class="absolute sm:relative -z-10 print:hidden!">
             <a href="/">
                 <div class="block sm:hidden">
                     <Logo variant="sideways" client:visible />
@@ -22,36 +24,26 @@ const { title } = Astro.props;
                 </div>
             </a>
         </div>
-        <div class="py-9 pl-12 pr-2 sm:py-0 sm-px-0 sm:pl-0 sm:pr-0">
-            <div
-                class="overflow-hidden text-primary py-2 grid grid-rows-1 grid-cols-1"
-            >
-                <div
-                    class="bg-surface border col-start-1 col-end-2 row-start-1 row-end-2"
-                >
+        <div class="py-9 pl-12 pr-2 sm:py-0 sm-px-0 sm:pl-0 sm:pr-0 print:p-0!">
+            <div class="overflow-hidden text-primary py-2 print:hidden!">
+                <div class="bg-surface border">
                     ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
                 </div>
-                <nav
-                    class="col-start-1 col-end-2 row-start-1 row-end-2 flex justify-end gap-2"
-                >
-                    <a href="/"> home </a>
-                    <a href="/events"> events </a>
-                    <a href="/about"> about </a>
-                    <a href="/discord"> discord </a>
-                    <a class="mr-0.5" href="/profile"> account </a>
-                </nav>
             </div>
 
-            <div class="px-1 bg-surface border border-primary min-h-[60vh]">
-                <h1>{title}</h1>
+            <div class="px-4 py-2 bg-surface border border-primary min-h-[60vh] print:border-0! print:p-0! print:min-h-0!">
+                <div class="flex flex-col gap-2 pb-2">
+                    <Breadcrumbs crumbs={crumbs} current={title} />
+                    <h1>{title}</h1>
+                </div>
                 <slot />
             </div>
-            <div class="block sm:hidden pt-12">
+            <div class="block sm:hidden pt-12 print:hidden!">
                 <Footer />
             </div>
         </div>
     </main>
-    <div class="hidden sm:block">
+    <div class="hidden sm:block print:hidden!">
         <div class="absolute -z-10">
             <Logo variant="blank" client:visible />
         </div>
@@ -61,12 +53,3 @@ const { title } = Astro.props;
     </div>
 </BaseLayout>
 
-<style>
-    nav a {
-        background-color: var(--color-surface);
-        text-decoration: underline;
-        color: var(--color-primary);
-        border-bottom: 1px solid var(--color-primary);
-        border-top: 1px solid var(--color-primary);
-    }
-</style>
