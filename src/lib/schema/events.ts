@@ -33,10 +33,33 @@ export const rsvp = pgTable(
         userId: text("user_id")
             .notNull()
             .references(() => user.id, { onDelete: "cascade" }),
+        // going → at_door (rang the doorbell) → present (welcomed in)
+        status: text("status", { enum: ["going", "at_door", "present"] })
+            .default("going")
+            .notNull(),
+        arrivedAt: timestamp("arrived_at", { withTimezone: true }),
+        welcomedAt: timestamp("welcomed_at", { withTimezone: true }),
         createdAt: timestamp("created_at").defaultNow().notNull(),
     },
     (table) => [
         primaryKey({ columns: [table.eventId, table.userId] }),
         index("rsvp_userId_idx").on(table.userId),
     ],
+);
+
+// +1s and non-members, added by an admin at the door. They take up a spot.
+export const guest = pgTable(
+    "guest",
+    {
+        id: text("id")
+            .primaryKey()
+            .$defaultFn(() => crypto.randomUUID()),
+        eventId: text("event_id")
+            .notNull()
+            .references(() => event.id, { onDelete: "cascade" }),
+        name: text("name").notNull(),
+        addedBy: text("added_by").references(() => user.id, { onDelete: "set null" }),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => [index("guest_eventId_idx").on(table.eventId)],
 );

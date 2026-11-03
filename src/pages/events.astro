@@ -1,26 +1,29 @@
 ---
 import { actions } from "astro:actions";
 import SubLayout from "../layouts/SubLayout.astro";
-import { upcomingEvents } from "../lib/events";
+import { isDoorbellOpen, upcomingEvents } from "../lib/events";
 import { formatEventTime } from "../lib/time";
 
 export const prerender = false;
 
 const { user } = Astro.locals;
 
-// Reload with GET after a successful RSVP so refreshing doesn't resubmit
+// Reload with GET after a successful form so refreshing doesn't resubmit
 const rsvpResult = Astro.getActionResult(actions.events.rsvp);
 const cancelResult = Astro.getActionResult(actions.events.cancelRsvp);
-if ((rsvpResult && !rsvpResult.error) || (cancelResult && !cancelResult.error)) {
-    return Astro.redirect("/events");
-}
-const error = rsvpResult?.error?.message ?? cancelResult?.error?.message;
+const doorbellResult = Astro.getActionResult(actions.events.ringDoorbell);
+const results = [rsvpResult, cancelResult, doorbellResult];
+if (results.some((result) => result && !result.error)) return Astro.redirect("/events");
+const error = results.find((result) => result?.error)?.error?.message;
 
 const events = await upcomingEvents(user?.id ?? null);
+// Refresh while waiting at the door, so members see when they've been let in
+const waiting = events.some((item) => item.myStatus === "at_door");
 ---
 
 <SubLayout title="Events">
     {error && <p role="alert" class="py-2">{error}</p>}
+    {waiting && <script is:inline>setTimeout(() => location.reload(), 5000);</script>}
 
     {events.length === 0 && <p class="py-4">No upcoming events yet. Check the Discord for news.</p>}
 
@@ -41,7 +44,16 @@ const events = await upcomingEvents(user?.id ?? null);
 
                         {!user ? (
                             <a href="/login">log in to RSVP</a>
-                        ) : item.isGoing ? (
+                        ) : item.myStatus === "present" ? (
+                            <p>you're in ✓ welcome!</p>
+                        ) : item.myStatus === "at_door" ? (
+                            <p>🔔 you've rung the doorbell. Someone's coming to let you in…</p>
+                        ) : isDoorbellOpen(item) ? (
+                            <form method="POST" action={actions.events.ringDoorbell}>
+                                <input type="hidden" name="eventId" value={item.id} />
+                                <button class="doorbell">🔔 ring the doorbell</button>
+                            </form>
+                        ) : item.myStatus === "going" ? (
                             <form method="POST" action={actions.events.cancelRsvp}>
                                 <input type="hidden" name="eventId" value={item.id} />
                                 <span>you're going ✓</span>
@@ -77,5 +89,11 @@ const events = await upcomingEvents(user?.id ?? null);
 
     form > button:first-child {
         margin-left: 0;
+    }
+
+    .doorbell {
+        font-size: 1.5rem;
+        padding: 0.5rem 1rem;
+        margin-top: 0.5rem;
     }
 </style>

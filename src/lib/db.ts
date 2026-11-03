@@ -8,7 +8,7 @@ import * as schema from "./schema";
 export const db = drizzle(neon(DATABASE_URL), { schema });
 
 const poolDb = (pool: Pool) => drizzleWs(pool, { schema });
-type Tx = Parameters<Parameters<ReturnType<typeof poolDb>["transaction"]>[0]>[0];
+export type Tx = Parameters<Parameters<ReturnType<typeof poolDb>["transaction"]>[0]>[0];
 
 // WebSocket pool, opened per call and closed after, as Neon recommends for serverless
 export async function transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {

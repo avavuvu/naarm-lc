@@ -17,6 +17,18 @@ const { title } = Astro.props;
         <title>{title}</title>
     </head>
     <body>
+        <!-- Maps an image's brightness from blue (dark) to white (light), used by Avatar -->
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <filter id="blue-mono" color-interpolation-filters="sRGB">
+                <feColorMatrix
+                    type="matrix"
+                    values="0.2126 0.7152 0.0722 0 0
+                            0.2126 0.7152 0.0722 0 0
+                            0 0 0 0 1
+                            0 0 0 1 0"
+                />
+            </filter>
+        </svg>
         <slot />
     </body>
 </html>

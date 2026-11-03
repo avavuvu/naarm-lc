@@ -1,6 +1,7 @@
 ---
 import SubLayout from "../layouts/SubLayout.astro";
 import ProfileForm from "../components/ProfileForm.svelte";
+import Avatar from "../components/Avatar.svelte";
 
 export const prerender = false;
 
@@ -14,15 +15,7 @@ const email = user.email.endsWith(".invalid") ? null : user.email;
 <SubLayout title="Profile">
     <div class="flex flex-col gap-6 py-4">
         <div class="flex items-center gap-4">
-            {
-                user.image ? (
-                    <img class="w-16 h-16 border" src={user.image} alt="" />
-                ) : (
-                    <div class="w-16 h-16 border flex items-center justify-center text-2xl">
-                        {user.name.charAt(0)}
-                    </div>
-                )
-            }
+            <Avatar name={user.name} image={user.image} size="4rem" />
             <div>
                 <p>{user.name}</p>
                 {user.username && <p>@{user.username}</p>}

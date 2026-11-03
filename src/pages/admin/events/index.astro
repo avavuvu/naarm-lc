@@ -10,7 +10,10 @@ const now = new Date();
 ---
 
 <SubLayout title="Admin: events">
-    <p class="py-2"><a href="/admin/events/new">+ new event</a></p>
+    <p class="py-2 flex gap-4">
+        <a href="/admin/events/new">+ new event</a>
+        <a href="/admin/doorway">open the doorway</a>
+    </p>
 
     {events.length === 0 && <p>No events yet.</p>}
 

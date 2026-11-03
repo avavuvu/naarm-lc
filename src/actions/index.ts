@@ -1,8 +1,9 @@
 import { ActionError, defineAction, type ActionAPIContext } from "astro:actions";
 import { z } from "astro/zod";
 import { and, count, eq } from "drizzle-orm";
-import { db, transaction } from "../lib/db";
-import { event, rsvp } from "../lib/schema";
+import { doorwayState, isDoorbellOpen } from "../lib/events";
+import { db, transaction, type Tx } from "../lib/db";
+import { event, guest, rsvp } from "../lib/schema";
 import { fromMelbourne } from "../lib/time";
 
 function requireUser(context: ActionAPIContext) {
@@ -44,6 +45,39 @@ function toEventRow(input: z.infer<typeof eventFields>) {
 }
 
 const eventId = z.object({ eventId: z.string().min(1) });
+
+/**
+ * Locks the event row for the rest of the transaction, so concurrent requests
+ * wait their turn and two people can't both take the last spot.
+ */
+async function lockEvent(tx: Tx, id: string) {
+    const [target] = await tx
+        .select({ capacity: event.capacity, startsAt: event.startsAt, endsAt: event.endsAt })
+        .from(event)
+        .where(eq(event.id, id))
+        .for("update");
+    if (!target) throw new ActionError({ code: "NOT_FOUND", message: "Event not found" });
+    return target;
+}
+
+async function hasSpace(tx: Tx, id: string, capacity: number | null) {
+    if (capacity === null) return true;
+    const [[members], [guests]] = await Promise.all([
+        tx.select({ n: count() }).from(rsvp).where(eq(rsvp.eventId, id)),
+        tx.select({ n: count() }).from(guest).where(eq(guest.eventId, id)),
+    ]);
+    return members.n + guests.n < capacity;
+}
+
+async function findRsvp(tx: Tx, eventId: string, userId: string) {
+    const [found] = await tx
+        .select({ status: rsvp.status })
+        .from(rsvp)
+        .where(and(eq(rsvp.eventId, eventId), eq(rsvp.userId, userId)));
+    return found ?? null;
+}
+
+const memberAtEvent = z.object({ eventId: z.string().min(1), userId: z.string().min(1) });
 
 export const server = {
     events: {
@@ -90,34 +124,14 @@ export const server = {
             handler: async (input, context) => {
                 const user = requireUser(context);
                 await transaction(async (tx) => {
-                    // Locking the event makes concurrent RSVPs wait their turn,
-                    // so two people can't both take the last spot
-                    const [target] = await tx
-                        .select({ capacity: event.capacity, endsAt: event.endsAt })
-                        .from(event)
-                        .where(eq(event.id, input.eventId))
-                        .for("update");
-                    if (!target) throw new ActionError({ code: "NOT_FOUND", message: "Event not found" });
+                    const target = await lockEvent(tx, input.eventId);
                     if (target.endsAt < new Date()) {
                         throw new ActionError({ code: "BAD_REQUEST", message: "That event has finished" });
                     }
-
-                    const [existing] = await tx
-                        .select({ userId: rsvp.userId })
-                        .from(rsvp)
-                        .where(and(eq(rsvp.eventId, input.eventId), eq(rsvp.userId, user.id)));
-                    if (existing) return;
-
-                    if (target.capacity !== null) {
-                        const [{ going }] = await tx
-                            .select({ going: count() })
-                            .from(rsvp)
-                            .where(eq(rsvp.eventId, input.eventId));
-                        if (going >= target.capacity) {
-                            throw new ActionError({ code: "CONFLICT", message: "Sorry, that event is full" });
-                        }
+                    if (await findRsvp(tx, input.eventId, user.id)) return;
+                    if (!(await hasSpace(tx, input.eventId, target.capacity))) {
+                        throw new ActionError({ code: "CONFLICT", message: "Sorry, that event is full" });
                     }
-
                     await tx.insert(rsvp).values({ eventId: input.eventId, userId: user.id });
                 });
             },
@@ -130,7 +144,95 @@ export const server = {
                 const user = requireUser(context);
                 await db
                     .delete(rsvp)
-                    .where(and(eq(rsvp.eventId, input.eventId), eq(rsvp.userId, user.id)));
+                    .where(
+                        and(
+                            eq(rsvp.eventId, input.eventId),
+                            eq(rsvp.userId, user.id),
+                            eq(rsvp.status, "going"),
+                        ),
+                    );
+            },
+        }),
+
+        ringDoorbell: defineAction({
+            accept: "form",
+            input: eventId,
+            handler: async (input, context) => {
+                const user = requireUser(context);
+                await transaction(async (tx) => {
+                    const target = await lockEvent(tx, input.eventId);
+                    if (!isDoorbellOpen(target)) {
+                        throw new ActionError({
+                            code: "BAD_REQUEST",
+                            message: "The doorbell opens 30 minutes before the event starts",
+                        });
+                    }
+
+                    const existing = await findRsvp(tx, input.eventId, user.id);
+                    if (existing?.status === "at_door" || existing?.status === "present") return;
+
+                    if (existing) {
+                        await tx
+                            .update(rsvp)
+                            .set({ status: "at_door", arrivedAt: new Date() })
+                            .where(and(eq(rsvp.eventId, input.eventId), eq(rsvp.userId, user.id)));
+                        return;
+                    }
+
+                    // Walk-ins without an RSVP get a spot if there's one left
+                    if (!(await hasSpace(tx, input.eventId, target.capacity))) {
+                        throw new ActionError({
+                            code: "CONFLICT",
+                            message: "Sorry, the event is full. Have a word with whoever's at the door.",
+                        });
+                    }
+                    await tx.insert(rsvp).values({
+                        eventId: input.eventId,
+                        userId: user.id,
+                        status: "at_door",
+                        arrivedAt: new Date(),
+                    });
+                });
+            },
+        }),
+    },
+
+    doorway: {
+        state: defineAction({
+            input: eventId,
+            handler: async (input, context) => {
+                requireAdmin(context);
+                const state = await doorwayState(input.eventId);
+                if (!state) throw new ActionError({ code: "NOT_FOUND", message: "Event not found" });
+                return state;
+            },
+        }),
+
+        welcome: defineAction({
+            input: memberAtEvent,
+            handler: async (input, context) => {
+                requireAdmin(context);
+                await db
+                    .update(rsvp)
+                    .set({ status: "present", welcomedAt: new Date() })
+                    .where(and(eq(rsvp.eventId, input.eventId), eq(rsvp.userId, input.userId)));
+            },
+        }),
+
+        addGuest: defineAction({
+            input: z.object({ eventId: z.string().min(1), name: z.string().trim().min(1).max(64) }),
+            handler: async (input, context) => {
+                const admin = requireAdmin(context);
+                // Guests take up a spot, but the admin at the door can go over capacity
+                await db.insert(guest).values({ eventId: input.eventId, name: input.name, addedBy: admin.id });
+            },
+        }),
+
+        removeGuest: defineAction({
+            input: z.object({ guestId: z.string().min(1) }),
+            handler: async (input, context) => {
+                requireAdmin(context);
+                await db.delete(guest).where(eq(guest.id, input.guestId));
             },
         }),
     },

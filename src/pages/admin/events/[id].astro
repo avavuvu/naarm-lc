@@ -2,7 +2,8 @@
 import { actions } from "astro:actions";
 import SubLayout from "../../../layouts/SubLayout.astro";
 import EventForm from "../../../components/admin/EventForm.astro";
-import { attendees, eventById } from "../../../lib/events";
+import Avatar from "../../../components/Avatar.svelte";
+import { attendees, eventById, guests } from "../../../lib/events";
 
 export const prerender = false;
 
@@ -15,33 +16,40 @@ if (updated && !updated.error) return Astro.redirect(Astro.url.pathname);
 const event = await eventById(Astro.params.id!);
 if (!event) return new Response("Event not found", { status: 404 });
 
-const going = await attendees(event.id);
+const [going, guestList] = await Promise.all([attendees(event.id), guests(event.id)]);
+const statusLabels = { going: "", at_door: "at the door", present: "here" };
 const error = updated?.error?.message ?? deleted?.error?.message;
 ---
 
 <SubLayout title={`Admin: ${event.title}`}>
-    <p><a href="/admin/events">← all events</a></p>
+    <p class="flex gap-4">
+        <a href="/admin/events">← all events</a>
+        <a href={`/admin/doorway?event=${event.id}`}>open the doorway</a>
+    </p>
     {error && <p role="alert">{error}</p>}
 
     <EventForm action={actions.events.update} submitLabel="save changes" event={event} />
 
     <h2 class="pt-4">
-        Going ({going.length}{event.capacity !== null && ` of ${event.capacity}`})
+        Going ({event.going}{event.capacity !== null && ` of ${event.capacity}`})
     </h2>
-    {going.length === 0 && <p>No RSVPs yet.</p>}
+    {going.length === 0 && guestList.length === 0 && <p>No RSVPs yet.</p>}
     <ul class="flex flex-col gap-2 py-2">
         {
             going.map((member) => (
                 <li class="flex items-center gap-2">
-                    {member.image ? (
-                        <img class="w-8 h-8 border" src={member.image} alt="" />
-                    ) : (
-                        <span class="w-8 h-8 border flex items-center justify-center">
-                            {member.name.charAt(0)}
-                        </span>
-                    )}
+                    <Avatar name={member.name} image={member.image} />
                     <span>{member.name}</span>
                     {member.username && <span>@{member.username}</span>}
+                    {statusLabels[member.status] && <span>· {statusLabels[member.status]}</span>}
+                </li>
+            ))
+        }
+        {
+            guestList.map((guest) => (
+                <li class="flex items-center gap-2">
+                    <Avatar name={guest.name} />
+                    <span>{guest.name} (guest)</span>
                 </li>
             ))
         }
