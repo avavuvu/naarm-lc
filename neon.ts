@@ -9,8 +9,8 @@ export default defineConfig({
       // Default branch: no overrides, uses project defaults
       return {};
     }
-    if (branch.name === "dev") {
-      // Long-lived branch for local development
+    if (branch.name === "dev" || branch.name === "preview") {
+      // Long-lived branches for local development and Netlify deploy previews
       return {};
     }
     if (!branch.exists) {

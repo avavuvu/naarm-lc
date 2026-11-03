@@ -1,17 +1,21 @@
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
-import { magicLink } from "better-auth/plugins";
+import { magicLink, oAuthProxy } from "better-auth/plugins";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { and, eq, ne } from "drizzle-orm";
 import {
+    BETTER_AUTH_PREVIEW_HOSTS,
     BETTER_AUTH_SECRET,
     BETTER_AUTH_URL,
     DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET,
     GITHUB_CLIENT_ID,
     GITHUB_CLIENT_SECRET,
+    OAUTH_PROXY_PRODUCTION_URL,
+    OAUTH_PROXY_SECRET,
 } from "astro:env/server";
 import { db } from "./db";
+import { emailConfigured, magicLinkEmail, sendEmail } from "./email";
 import * as schema from "./schema";
 
 // Within Discourse's username rules, so usernames carry over to a forum unchanged
@@ -29,9 +33,21 @@ const withoutTokens = <T extends object>(account: T) => ({
     idToken: null,
 });
 
+// Deploy previews each get their own address, e.g.
+// deploy-preview-12--<site>.netlify.app, so they match against patterns instead
+// of having a fixed BETTER_AUTH_URL
+const previewHosts = (BETTER_AUTH_PREVIEW_HOSTS ?? "")
+    .split(",")
+    .map((host) => host.trim())
+    .filter(Boolean);
+
 export const auth = betterAuth({
     secret: BETTER_AUTH_SECRET,
-    baseURL: BETTER_AUTH_URL,
+    baseURL:
+        BETTER_AUTH_URL ||
+        (previewHosts.length > 0 ? { allowedHosts: previewHosts, protocol: "https" } : undefined),
+    // Production must trust previews for their logins to come back through it
+    trustedOrigins: previewHosts.map((host) => `https://${host}`),
     database: drizzleAdapter(db, { provider: "pg", schema }),
 
     user: {
@@ -81,6 +97,7 @@ export const auth = betterAuth({
     plugins: [
         magicLink({
             sendMagicLink: async ({ email, url }) => {
+                if (emailConfigured) return sendEmail(magicLinkEmail(email, url));
                 if (import.meta.env.DEV) {
                     console.log(`\n[magic link] ${email}\n${url}\n`);
                     return;
@@ -90,6 +107,11 @@ export const auth = betterAuth({
                 });
             },
         }),
+        // Discord and GitHub only accept callbacks to registered URLs, so previews
+        // send their logins through production. Set on production and previews.
+        ...(OAUTH_PROXY_SECRET && OAUTH_PROXY_PRODUCTION_URL
+            ? [oAuthProxy({ productionURL: OAUTH_PROXY_PRODUCTION_URL, secret: OAUTH_PROXY_SECRET })]
+            : []),
     ],
 
     // Serverless functions don't share memory, so keep counters in the database
