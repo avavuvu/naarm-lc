@@ -1,8 +1,11 @@
 ---
 import EventAction from "./EventAction.svelte";
 import NextEvent from "./NextEvent.svelte";
-import { eventAction, nextMeetup } from "../../lib/events";
 import { eventPath } from "../../lib/paths";
+
+// Imported here rather than at the top: the home page is prerendered and imports this
+// island, and loading the database code at build time fails without the secrets.
+const { eventAction, nextMeetup } = await import("../../lib/events");
 
 const { user } = Astro.locals;
 const next = await nextMeetup(user?.id ?? null);
