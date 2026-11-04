@@ -1,0 +1,38 @@
+---
+import { actions } from "astro:actions";
+import SubLayout from "../../../layouts/SubLayout.astro";
+import EventEdit from "../../../components/admin/EventEdit.svelte";
+import { errorMessage } from "../../../lib/errors";
+import { eventById } from "../../../lib/events";
+import { eventIdFromParam, eventPath } from "../../../lib/paths";
+
+export const prerender = false;
+
+if (Astro.locals.user?.role !== "admin") return Astro.redirect("/login");
+
+const deleted = Astro.getActionResult(actions.events.delete);
+if (deleted && !deleted.error) return Astro.redirect("/events");
+
+const updated = Astro.getActionResult(actions.events.update);
+if (updated && !updated.error) return Astro.redirect(eventPath(updated.data));
+
+const id = eventIdFromParam(Astro.params.event);
+const event = id && (await eventById(id));
+if (!event) return new Response("event not found", { status: 404 });
+---
+
+<SubLayout
+    title="edit"
+    crumbs={[
+        { label: "events", href: "/events" },
+        { label: event.title, href: eventPath(event) },
+    ]}
+>
+    <EventEdit
+        event={event}
+        updateAction={actions.events.update.toString()}
+        deleteAction={actions.events.delete.toString()}
+        error={errorMessage(updated?.error ?? deleted?.error)}
+        client:load
+    />
+</SubLayout>
