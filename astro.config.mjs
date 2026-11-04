@@ -28,6 +28,7 @@ export default defineConfig({
             DISCORD_CLIENT_SECRET: envField.string({ context: "server", access: "secret", optional: true }),
             RESEND_API_KEY: envField.string({ context: "server", access: "secret", optional: true }),
             EMAIL_FROM: envField.string({ context: "server", access: "secret", optional: true }),
+            NETLIFY_BUILD_HOOK: envField.string({ context: "server", access: "secret", optional: true }),
         },
     },
 

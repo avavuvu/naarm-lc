@@ -2,7 +2,10 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Logo from "../components/Logo.svelte";
 import Footer from "../components/Footer.svelte";
-import NextEvent from "../components/events/NextEventIsland.astro";
+import NextEvent from "../components/events/NextEvent.svelte";
+import { nextMeetup } from "../lib/events";
+
+const next = await nextMeetup(null);
 ---
 
 <BaseLayout>
@@ -46,11 +49,7 @@ import NextEvent from "../components/events/NextEventIsland.astro";
                 </nav>
             </div>
 
-            <NextEvent server:defer>
-                <section slot="fallback" class="border bg-surface p-6 min-h-48">
-                    <h2>next event</h2>
-                </section>
-            </NextEvent>
+            <NextEvent event={next} />
         </div>
     </main>
     <div class="hidden sm:block">

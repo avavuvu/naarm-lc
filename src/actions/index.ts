@@ -1,4 +1,5 @@
 import { ActionError, defineAction, type ActionAPIContext } from "astro:actions";
+import { NETLIFY_BUILD_HOOK } from "astro:env/server";
 import { z } from "astro/zod";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, type Tx } from "../lib/db";
@@ -86,6 +87,11 @@ async function findRsvp(tx: Tx, eventId: number, userId: string) {
     return found ?? null;
 }
 
+async function rebuildHomePage() {
+    if (!NETLIFY_BUILD_HOOK) return;
+    await fetch(NETLIFY_BUILD_HOOK, { method: "POST" }).catch((error) => console.error("build hook failed", error));
+}
+
 export const server = {
     events: {
         create: defineAction({
@@ -97,6 +103,7 @@ export const server = {
                     .insert(event)
                     .values({ ...toEventRow(input), createdBy: admin.id })
                     .returning({ id: event.id, title: event.title });
+                await rebuildHomePage();
                 return created;
             },
         }),
@@ -112,6 +119,7 @@ export const server = {
                     .where(eq(event.id, input.eventId))
                     .returning({ id: event.id, title: event.title });
                 if (!updated) throw new ActionError({ code: "NOT_FOUND", message: "event not found" });
+                await rebuildHomePage();
                 return updated;
             },
         }),
@@ -122,6 +130,7 @@ export const server = {
             handler: async (input, context) => {
                 requireAdmin(context);
                 await db.delete(event).where(eq(event.id, input.eventId));
+                await rebuildHomePage();
             },
         }),
 

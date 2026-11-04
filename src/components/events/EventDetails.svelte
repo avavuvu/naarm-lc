@@ -3,7 +3,12 @@
     import { eventPath } from "../../lib/paths";
     import { formatEventTime } from "../../lib/time";
 
-    const { event, link = false, title = true }: { event: ViewerEvent; link?: boolean; title?: boolean } = $props();
+    const {
+        event,
+        link = false,
+        title = true,
+        count = true,
+    }: { event: ViewerEvent; link?: boolean; title?: boolean; count?: boolean } = $props();
 </script>
 
 <div>
@@ -22,11 +27,7 @@
         <p>exact location shared once you rsvp</p>
     {/if}
 
-    {#if event.kind === "gig"}
-        <!--  -->
-    {:else if event.capacity === null}
-        <p>{event.spotsTaken} going</p>
-    {:else}
-        <p>{event.spotsTaken} going · {event.capacity} spots</p>
+    {#if count && event.kind === "meetup"}
+        <p>{event.spotsTaken} going{event.capacity === null ? "" : ` · ${event.capacity} spots`}</p>
     {/if}
 </div>

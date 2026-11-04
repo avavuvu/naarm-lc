@@ -1,20 +1,18 @@
 <script lang="ts">
-    import type { Snippet } from "svelte";
     import EventDetails from "./EventDetails.svelte";
     import EventImage from "./EventImage.svelte";
     import type { ViewerEvent } from "../../lib/events";
+    import { eventPath } from "../../lib/paths";
 
-    const { event, children }: { event: ViewerEvent | null; children?: Snippet } = $props();
-    // svelte-ignore state_referenced_locally
-    const onNow = event !== null && event.startsAt <= new Date();
+    const { event }: { event: ViewerEvent | null } = $props();
 </script>
 
 <section class="border bg-surface p-6 flex flex-col gap-6">
-    <h2>{onNow ? "on now" : "next meetup"}</h2>
+    <h2>next meetup</h2>
     {#if event}
         <EventImage {event} link />
-        <EventDetails {event} link />
-        {@render children?.()}
+        <EventDetails {event} link count={false} />
+        <a class="button self-start" href={eventPath(event)}>rsvp</a>
     {:else}
         <p>check the <a href="/discord">discord</a>.</p>
     {/if}
