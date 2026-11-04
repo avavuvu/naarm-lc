@@ -10,7 +10,7 @@ import {
 } from "astro:env/server";
 import { signConfirmLink } from "./confirm";
 import { db } from "./db";
-import { emailConfigured, magicLinkEmail, sendEmail } from "./email";
+import { emailConfigured, emailMagicLink } from "./email";
 import { eventById } from "./events";
 import * as schema from "./schema";
 
@@ -68,7 +68,7 @@ export const auth = betterAuth({
                 const name = ctx?.body?.name == null ? null : cleanName(ctx.body.name);
                 const link = name ? signConfirmLink(url, email, name) : { url, eventId: null };
                 const eventTitle = link.eventId ? ((await eventById(Number(link.eventId)))?.title ?? null) : null;
-                if (emailConfigured) return sendEmail(magicLinkEmail(email, link.url, eventTitle));
+                if (emailConfigured) return emailMagicLink(email, link.url, eventTitle);
                 if (import.meta.env.DEV) {
                     console.log(`\n[magic link] ${email}\n${link.url}\n`);
                     return;

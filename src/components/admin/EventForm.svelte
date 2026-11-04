@@ -63,11 +63,11 @@
         <label for="privateLocation">private location (optional, only shown to people who rsvp)</label>
         <input id="privateLocation" name="privateLocation" maxlength="300" value={event?.privateLocation ?? ""} />
 
-        <label for="capacity">capacity (leave empty for no limit)</label>
+        <label for="capacity">capacity (optional, leave empty for no limit)</label>
         <input id="capacity" name="capacity" type="number" min="1" step="1" value={event?.capacity ?? ""} />
     </div>
 
-    <label for="image">image (optional: a file in public/events, like /events/poster.png, or a url)</label>
+    <label for="image">image (optional, use a url to a file)</label>
     <input id="image" name="image" maxlength="500" value={event?.image ?? ""} />
 
     <label for="description">description</label>

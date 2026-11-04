@@ -13,6 +13,8 @@ export default defineConfig({
         "/discord": "https://discord.gg/37xpc8hyaG",
     },
 
+    site: "https://naarm.lc",
+
     output: "static",
 
     adapter: netlify(),

@@ -6,6 +6,7 @@ import EventPage from "../../../components/events/EventPage.svelte";
 import { errorMessage } from "../../../lib/errors";
 import { attendees, eventAction, eventForViewer, guests } from "../../../lib/events";
 import { eventIdFromParam, eventPath } from "../../../lib/paths";
+import { formatEventTime } from "../../../lib/time";
 
 export const prerender = false;
 
@@ -29,7 +30,12 @@ const admin =
     user?.role === "admin" ? { attendees: await attendees(event.id), guests: await guests(event.id) } : null;
 ---
 
-<SubLayout title={event.title} crumbs={[{ label: "events", href: "/events" }]}>
+<SubLayout
+    title={event.title}
+    crumbs={[{ label: "events", href: "/events" }]}
+    description={[formatEventTime(event.startsAt, event.endsAt), event.description].filter(Boolean).join(" · ")}
+    image={event.image}
+>
     <EventPage event={event} path={path} error={error} admin={admin}>
         <EventAction eventId={event.id} path={path} action={eventAction(event, Boolean(user))} ticketUrl={event.url} client:load />
     </EventPage>

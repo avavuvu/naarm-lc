@@ -7,12 +7,14 @@ import Breadcrumbs, { type Crumb } from "../components/Breadcrumbs.svelte";
 interface Props {
     title: string;
     crumbs?: Crumb[];
+    description?: string;
+    image?: string | null;
 }
 
-const { title, crumbs = [] } = Astro.props;
+const { title, crumbs = [], description, image } = Astro.props;
 ---
 
-<BaseLayout title={title}>
+<BaseLayout title={title} description={description} image={image}>
     <main class="max-w-4xl mx-auto">
         <div class="absolute sm:relative -z-10 print:hidden!">
             <a href="/">

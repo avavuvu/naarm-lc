@@ -2,10 +2,19 @@
 import "../styles/global.css";
 
 interface Props {
-    title: string;
+    title?: string;
+    description?: string;
+    image?: string | null;
 }
 
-const { title } = Astro.props;
+const SITE_NAME = "live coders naarm";
+
+const { title, description = "creative coding meetups for everyone in melbourne, australia", image } = Astro.props;
+
+const fullTitle = title ? `${title} · ${SITE_NAME}` : SITE_NAME;
+const shortDescription = description.replace(/\s+/g, " ").trim().slice(0, 200);
+const url = new URL(Astro.url.pathname, Astro.site);
+const imageUrl = image ? new URL(image, Astro.site) : null;
 ---
 
 <html lang="en">
@@ -14,7 +23,16 @@ const { title } = Astro.props;
         <link rel="icon" href="/favicon.svg" />
         <meta name="viewport" content="width=device-width" />
         <meta name="generator" content={Astro.generator} />
-        <title>{title}</title>
+        <title>{fullTitle}</title>
+        <meta name="description" content={shortDescription} />
+        <link rel="canonical" href={url} />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={title ?? SITE_NAME} />
+        <meta property="og:description" content={shortDescription} />
+        <meta property="og:url" content={url} />
+        {imageUrl && <meta property="og:image" content={imageUrl} />}
+        <meta name="twitter:card" content={imageUrl ? "summary_large_image" : "summary"} />
     </head>
     <body>
         <slot />
