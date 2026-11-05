@@ -1,0 +1,42 @@
+---
+import { actions } from "astro:actions";
+import SubLayout from "../../../layouts/SubLayout.astro";
+import EventAction from "../../../components/events/EventAction.svelte";
+import EventPage from "../../../components/events/EventPage.svelte";
+import { errorMessage } from "../../../lib/errors";
+import { attendees, eventAction, eventForViewer, guests } from "../../../lib/events";
+import { eventIdFromParam, eventPath } from "../../../lib/paths";
+import { formatEventTime } from "../../../lib/time";
+
+export const prerender = false;
+
+const { user } = Astro.locals;
+const id = eventIdFromParam(Astro.params.event);
+const event = id && (await eventForViewer(id, user?.id ?? null));
+if (!event) return new Response("event not found", { status: 404 });
+
+const path = eventPath(event);
+if (Astro.request.method === "GET" && Astro.url.pathname !== path) return Astro.redirect(path, 301);
+
+const results = [
+    Astro.getActionResult(actions.events.rsvp),
+    Astro.getActionResult(actions.events.cancelRsvp),
+    Astro.getActionResult(actions.events.ringDoorbell),
+];
+if (results.some((result) => result && !result.error)) return Astro.redirect(path);
+const error = errorMessage(results.find((result) => result?.error)?.error);
+
+const admin =
+    user?.role === "admin" ? { attendees: await attendees(event.id), guests: await guests(event.id) } : null;
+---
+
+<SubLayout
+    title={event.title}
+    crumbs={[{ label: "events", href: "/events" }]}
+    description={[formatEventTime(event.startsAt, event.endsAt), event.description].filter(Boolean).join(" · ")}
+    image={event.image}
+>
+    <EventPage event={event} path={path} error={error} admin={admin}>
+        <EventAction eventId={event.id} path={path} action={eventAction(event, Boolean(user))} ticketUrl={event.url} client:load />
+    </EventPage>
+</SubLayout>
