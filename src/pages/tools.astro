@@ -1,23 +1,26 @@
 ---
+import { tools } from "../content/tools";
 import SubLayout from "../layouts/SubLayout.astro";
 ---
 
-<SubLayout title="tools">
-    <p>tools created by our community</p>
+<SubLayout title="Tools">
+  <p>Tools created by our community</p>
 
-    <ul class="grid grid-cols-2 gap-2">
-        <li class="border grid grid-cols-2 gap-1">
-            <div>
-                <h2>
-                    <a class="underline" href="https://groups.naarm.lc"
-                        >group generator</a
-                    >
-                </h2>
-                <p>generate groups for live jams</p>
-            </div>
-            <a href="https://groups.naarm.lc">
-                <img src="/tools/group-generator.png" />
+  <ul class="grid grid-cols-2 gap-2">
+    {tools.map((tool) => (
+      <li class="border grid grid-cols-2 gap-1">
+        <div>
+          <h2>
+            <a class="underline" href={tool.href}>
+              {tool.name}
             </a>
-        </li>
-    </ul>
+          </h2>
+          <p>{tool.description}</p>
+        </div>
+        <a href={tool.href}>
+          <img src={tool.img} alt={tool.alt} />
+        </a>
+      </li>
+    ))}
+  </ul>
 </SubLayout>
