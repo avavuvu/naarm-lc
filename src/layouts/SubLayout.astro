@@ -1,48 +1,57 @@
 ---
 import BaseLayout from "./BaseLayout.astro";
 import Logo from "../components/Logo.svelte";
+import Footer from "../components/Footer.svelte";
+import Breadcrumbs, { type Crumb } from "../components/Breadcrumbs.svelte";
 
 interface Props {
     title: string;
-    hideTitle?: boolean;
+    crumbs?: Crumb[];
+    description?: string;
+    image?: string | null;
 }
 
-const { title, hideTitle = false } = Astro.props;
+const { title, crumbs = [], description, image } = Astro.props;
 ---
 
-<BaseLayout title={`${title} – naarm.lc`}>
-    <main class="max-w-4xl mx-auto py-4 px-4 sm:py-0 sm-px-0">
-        <div>
+<BaseLayout title={title} description={description} image={image}>
+    <main class="max-w-4xl mx-auto">
+        <div class="absolute sm:relative -z-10 print:hidden!">
             <a href="/">
-                <Logo variant="small" client:load />
+                <div class="block sm:hidden">
+                    <Logo variant="sideways" client:visible />
+                </div>
+                <div class="hidden sm:block">
+                    <Logo variant="small" client:visible />
+                </div>
             </a>
         </div>
-        <div
-            class="overflow-hidden text-[blue] py-2 grid grid-rows-1 grid-cols-1"
-        >
-            <div class="col-start-1 col-end-2 row-start-1 row-end-2">
-                ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+        <div class="py-9 pl-12 pr-2 sm:py-0 sm-px-0 sm:pl-0 sm:pr-0 print:p-0!">
+            <div class="overflow-hidden text-primary py-2 print:hidden!">
+                <div class="bg-surface border">
+                    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+                </div>
             </div>
-            <nav
-                class="col-start-1 col-end-2 row-start-1 row-end-2 flex justify-end gap-2"
-            >
-                <a href="/"> Home </a>
-                <a href="/events"> Events </a>
-                <a href="/about"> About </a>
-                <a href="/discord"> Discord </a>
-            </nav>
-        </div>
 
-        <div class="px-1 border border-[blue] min-h-[60vh] mb-12">
-            {!hideTitle && <h1>{title}</h1>}
-            <slot />
+            <div class="px-4 py-2 bg-surface border border-primary min-h-[60vh] print:border-0! print:p-0! print:min-h-0!">
+                <div class="flex flex-col gap-2 pb-2">
+                    <Breadcrumbs crumbs={crumbs} current={title} />
+                    <h1>{title}</h1>
+                </div>
+                <slot />
+            </div>
+            <div class="block sm:hidden pt-12 print:hidden!">
+                <Footer />
+            </div>
         </div>
     </main>
+    <div class="hidden sm:block print:hidden!">
+        <div class="absolute -z-10">
+            <Logo variant="blank" client:visible />
+        </div>
+        <div class="max-w-4xl mx-auto pt-12">
+            <Footer />
+        </div>
+    </div>
 </BaseLayout>
 
-<style>
-    nav a {
-        background-color: white;
-        text-decoration: underline;
-    }
-</style>

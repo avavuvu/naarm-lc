@@ -28,14 +28,7 @@ const {
 const { Content } = await render(member);
 ---
 
-<SubLayout title={name} hideTitle>
-    <div class="italic">
-        <a class="underline" href="/">naarm.lc</a> - <a
-            class="underline"
-            href="/members">members</a
-        > - <a class="underline" href={`/members/${id}`}>{name.toLowerCase()}</a
-        >
-    </div>
+<SubLayout title={name} crumbs={[{ label: "members", href: "/members" }]}>
 
     <div
         class="grid-cols-[20%_60%_auto] md:grid-cols-[10%_20%_auto_10%] grid grid-rows-1 py-12"
@@ -44,7 +37,7 @@ const { Content } = await render(member);
             profile?.src && (
                 <div class="border col-start-2 col-end-4 row-start-1 row-end-2">
                     <Image
-                        src={profile.src}
+                        src={profile}
                         quality="mosaic"
                         width="1200"
                         alt="..."

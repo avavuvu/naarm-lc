@@ -1,0 +1,21 @@
+---
+import SubLayout from "../layouts/SubLayout.astro";
+import LoginForm from "../components/account/LoginForm.svelte";
+import { discordEnabled } from "../lib/auth";
+
+export const prerender = false;
+
+if (Astro.locals.user) return Astro.redirect("/profile");
+
+const errors: Record<string, string> = {
+    INVALID_TOKEN: "that link has expired or was already used. request a new one below.",
+};
+const code = Astro.url.searchParams.get("error");
+const error = code ? (errors[code] ?? "something went wrong logging in. please try again.") : "";
+---
+
+<SubLayout title="log in">
+    <div class="py-6">
+        <LoginForm discord={discordEnabled} error={error} client:load />
+    </div>
+</SubLayout>
