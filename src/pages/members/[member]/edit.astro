@@ -1,0 +1,38 @@
+---
+import { actions } from "astro:actions";
+import SubLayout from "../../../layouts/SubLayout.astro";
+import MemberEdit from "../../../components/admin/MemberEdit.svelte";
+import { errorMessage } from "../../../lib/errors";
+import { memberPath, profileBySlug } from "../../../lib/members";
+
+export const prerender = false;
+
+const { user } = Astro.locals;
+if (user?.role !== "admin") return Astro.redirect("/login");
+
+const deleted = Astro.getActionResult(actions.members.delete);
+if (deleted && !deleted.error) return Astro.redirect("/admin");
+
+const updated = Astro.getActionResult(actions.members.update);
+if (updated && !updated.error) return Astro.redirect(memberPath(updated.data));
+
+const member = await profileBySlug(Astro.params.member ?? "");
+if (!member) return new Response("member not found", { status: 404 });
+---
+
+<SubLayout
+    title="edit"
+    crumbs={[
+        { label: "members", href: "/members" },
+        { label: member.name, href: memberPath(member) },
+    ]}
+>
+    <MemberEdit
+        member={member}
+        updateAction={actions.members.update.toString()}
+        deleteAction={actions.members.delete.toString()}
+        canDelete={member.id !== user.id}
+        error={errorMessage(updated?.error ?? deleted?.error)}
+        client:load
+    />
+</SubLayout>

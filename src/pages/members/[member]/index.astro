@@ -1,0 +1,38 @@
+---
+import { actions } from "astro:actions";
+import SubLayout from "../../../layouts/SubLayout.astro";
+import MemberProfile from "../../../components/members/MemberProfile.svelte";
+import MemberAdmin from "../../../components/admin/MemberAdmin.svelte";
+import { errorMessage } from "../../../lib/errors";
+import { accountEmail, memberPath, profileBySlug } from "../../../lib/members";
+
+export const prerender = false;
+
+const { user } = Astro.locals;
+const admin = user?.role === "admin";
+const member = await profileBySlug(Astro.params.member ?? "");
+const visible = member && (member.status === "approved" || admin || member.id === user?.id);
+if (!visible) return new Response("member not found", { status: 404 });
+
+const path = memberPath(member);
+
+const results = [Astro.getActionResult(actions.members.approve), Astro.getActionResult(actions.members.decline)];
+if (results.some((result) => result && !result.error)) return Astro.redirect(path);
+const error = errorMessage(results.find((result) => result?.error)?.error);
+
+const portrait = member.image ? `${path}/portrait.webp?v=${member.updatedAt.getTime()}` : null;
+
+const email = admin ? await accountEmail(member.id) : null;
+---
+
+<SubLayout
+    title={member.name}
+    crumbs={[{ label: "members", href: "/members" }]}
+    description={member.bio ?? `${member.name} is a member of live coders naarm`}
+    image={portrait}
+>
+    {member.status !== "approved" && !admin && <p class="py-4">only you can see this page until an admin approves your profile.</p>}
+    {error && <p role="alert">{error}</p>}
+    <MemberProfile member={member} portrait={portrait} />
+    {admin && <MemberAdmin member={{ ...member, email }} path={path} />}
+</SubLayout>

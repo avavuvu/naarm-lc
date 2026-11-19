@@ -1,17 +1,37 @@
 ---
+import { actions } from "astro:actions";
 import SubLayout from "../layouts/SubLayout.astro";
 import ProfileForm from "../components/account/ProfileForm.svelte";
+import { errorMessage } from "../lib/errors";
+import { memberPath, pendingCount, profileById } from "../lib/members";
 
 export const prerender = false;
 
 const { user } = Astro.locals;
 if (!user) return Astro.redirect("/login");
 
+const result = Astro.getActionResult(actions.profile.update);
+if (result && !result.error) return Astro.redirect("/profile?saved");
+
+const profile = await profileById(user.id);
+if (!profile) return Astro.redirect("/login");
+
 const email = user.email.endsWith(".invalid") ? null : user.email;
+const admin = user.role === "admin" ? { pending: await pendingCount() } : null;
 ---
 
-<SubLayout title="profile" crumbs={[{ label: user.name }]}>
+<SubLayout title="profile" crumbs={[{ label: profile.name }]}>
     <div class="flex flex-col items-start gap-8 py-6">
-        <ProfileForm name={user.name} email={email} admin={user.role === "admin"} client:load />
+        <ProfileForm
+            profile={profile}
+            status={profile.status}
+            path={profile.slug ? memberPath({ slug: profile.slug }) : null}
+            email={email}
+            admin={admin}
+            action={actions.profile.update.toString()}
+            saved={Astro.url.searchParams.has("saved")}
+            error={errorMessage(result?.error)}
+            client:load
+        />
     </div>
 </SubLayout>

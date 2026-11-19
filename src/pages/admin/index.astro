@@ -1,0 +1,21 @@
+---
+import { actions } from "astro:actions";
+import SubLayout from "../../layouts/SubLayout.astro";
+import AdminArea from "../../components/admin/AdminArea.svelte";
+import { errorMessage } from "../../lib/errors";
+import { accountsForAdmin } from "../../lib/members";
+
+export const prerender = false;
+
+if (Astro.locals.user?.role !== "admin") return Astro.redirect("/login");
+
+const results = [Astro.getActionResult(actions.members.approve), Astro.getActionResult(actions.members.decline)];
+if (results.some((result) => result && !result.error)) return Astro.redirect("/admin");
+const error = errorMessage(results.find((result) => result?.error)?.error);
+
+const accounts = await accountsForAdmin();
+---
+
+<SubLayout title="admin">
+    <AdminArea {...accounts} error={error} />
+</SubLayout>

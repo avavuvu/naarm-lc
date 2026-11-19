@@ -1,35 +1,17 @@
 ---
-import { getCollection } from "astro:content";
 import SubLayout from "../../layouts/SubLayout.astro";
+import MembersIndex from "../../components/members/MembersIndex.svelte";
+import { approvedMembers, pendingCount } from "../../lib/members";
 
-const members = await getCollection("members");
-const formattedMembers = members
-    .map((member) => ({
-        href: `/members/${member.id}`,
-        ...member.data,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+export const prerender = false;
+
+const { user } = Astro.locals;
+const [members, admin] = await Promise.all([
+    approvedMembers(),
+    user?.role === "admin" ? pendingCount().then((pending) => ({ pending })) : null,
+]);
 ---
 
-<SubLayout title="members">
-    <p>
-        Want to join? Visit the <a class="underline" href="/discord">Discord!</a
-        >
-    </p>
-
-    <hr class="my-4" />
-    <ul class="columns-2 md:columns-3">
-        {
-            formattedMembers.map(({ name, additionalName, href }) => (
-                <li>
-                    <a class="underline" {href}>
-                        {name}{" "}
-                        {additionalName && (
-                            <span class="italic"> ({additionalName})</span>
-                        )}
-                    </a>
-                </li>
-            ))
-        }
-    </ul>
+<SubLayout title="members" description="the people of live coders naarm">
+    <MembersIndex members={members} loggedIn={Boolean(user)} admin={admin} />
 </SubLayout>

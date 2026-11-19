@@ -8,6 +8,13 @@
       "when": 1793686825899,
       "tag": "0000_ordinary_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794102582996,
+      "tag": "0001_sweet_elektra",
+      "breakpoints": true
     }
   ]
 }

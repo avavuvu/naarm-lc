@@ -4,7 +4,8 @@ import { z } from "astro/zod";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, type Tx } from "../lib/db";
 import { doorwayState, isDoorbellOpen, isFull, lockEvent, rsvpTo, type RsvpResult } from "../lib/events";
-import { event, guest, rsvp } from "../lib/schema";
+import { slugTaken, uniqueSlug } from "../lib/members";
+import { event, guest, rsvp, user } from "../lib/schema";
 import { fromMelbourne } from "../lib/time";
 
 function requireUser(context: ActionAPIContext) {
@@ -19,6 +20,13 @@ function requireAdmin(context: ActionAPIContext) {
     return user;
 }
 
+const imageField = z
+    .string()
+    .trim()
+    .regex(/^(\/|https:\/\/)\S+$/, { error: "the image needs to be a path like /events/poster.png, or a url" })
+    .max(500)
+    .nullable();
+
 const eventFields = z.object({
     kind: z.enum(["meetup", "gig"]),
     title: z.string().trim().min(1).max(200),
@@ -30,13 +38,62 @@ const eventFields = z.object({
     capacity: z.number().int().min(1).nullable(),
     description: z.string().trim().max(5000).nullable(),
     url: z.url({ protocol: /^https?$/, error: "the link needs to be a full url, like https://…" }).max(500).nullable(),
-    image: z
-        .string()
-        .trim()
-        .regex(/^(\/|https:\/\/)\S+$/, { error: "the image needs to be a path like /events/poster.png, or a url" })
-        .max(500)
-        .nullable(),
+    image: imageField,
 });
+
+const MAX_LINKS = 10;
+const linkUrl = z.url({ protocol: /^https?$/ }).max(500);
+
+const profileFields = z.object({
+    name: z.string().trim().min(1, "names are 1–64 characters").max(64, "names are 1–64 characters"),
+    alias: z.string().trim().max(64).nullable(),
+    bio: z.string().trim().max(2000).nullable(),
+    image: imageField,
+    links: z
+        .string()
+        .max(MAX_LINKS * 500)
+        .nullable()
+        .transform((text, ctx) => {
+            const links = (text ?? "").split(/\s+/).filter(Boolean);
+            if (links.length > MAX_LINKS) {
+                ctx.addIssue({ code: "custom", message: `you can add up to ${MAX_LINKS} links` });
+                return z.NEVER;
+            }
+            const bad = links.find((link) => !linkUrl.safeParse(link).success);
+            if (bad) {
+                ctx.addIssue({ code: "custom", message: `"${bad}" needs to be a full url, like https://…` });
+                return z.NEVER;
+            }
+            return links;
+        }),
+});
+
+function toProfileRow(input: z.infer<typeof profileFields>) {
+    return {
+        name: input.name,
+        alias: input.alias || null,
+        bio: input.bio || null,
+        image: input.image || null,
+        links: input.links,
+    };
+}
+
+const userId = z.object({ userId: z.string().min(1) });
+
+const slugField = z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(48)
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, { error: "the url name can only use letters, numbers and dashes" });
+
+async function setStatus(id: string, status: "approved" | "declined") {
+    const [target] = await db.select({ name: user.name, slug: user.slug }).from(user).where(eq(user.id, id));
+    if (!target) throw new ActionError({ code: "NOT_FOUND", message: "account not found" });
+    const slug = target.slug ?? (status === "approved" ? await uniqueSlug(target.name, id) : null);
+    await db.update(user).set({ status, slug }).where(eq(user.id, id));
+    return { slug };
+}
 
 function toEventRow(input: z.infer<typeof eventFields>) {
     const gig = input.kind === "gig";
@@ -189,6 +246,67 @@ export const server = {
                     }
                     await tx.insert(rsvp).values({ eventId: input.eventId, userId: user.id, arrivedAt: new Date() });
                 });
+            },
+        }),
+    },
+
+    profile: {
+        update: defineAction({
+            accept: "form",
+            input: profileFields,
+            handler: async (input, context) => {
+                const me = requireUser(context);
+                await db.update(user).set(toProfileRow(input)).where(eq(user.id, me.id));
+            },
+        }),
+    },
+
+    members: {
+        approve: defineAction({
+            accept: "form",
+            input: userId,
+            handler: async (input, context) => {
+                requireAdmin(context);
+                return setStatus(input.userId, "approved");
+            },
+        }),
+
+        decline: defineAction({
+            accept: "form",
+            input: userId,
+            handler: async (input, context) => {
+                requireAdmin(context);
+                return setStatus(input.userId, "declined");
+            },
+        }),
+
+        update: defineAction({
+            accept: "form",
+            input: profileFields.extend(userId.shape).extend({ slug: slugField }),
+            handler: async (input, context) => {
+                requireAdmin(context);
+                if (await slugTaken(input.slug, input.userId)) {
+                    throw new ActionError({ code: "CONFLICT", message: `another member already uses /members/${input.slug}` });
+                }
+                const [updated] = await db
+                    .update(user)
+                    .set({ ...toProfileRow(input), slug: input.slug })
+                    .where(eq(user.id, input.userId))
+                    .returning({ slug: user.slug });
+                if (!updated) throw new ActionError({ code: "NOT_FOUND", message: "account not found" });
+                return { slug: input.slug };
+            },
+        }),
+
+        delete: defineAction({
+            accept: "form",
+            input: userId,
+            handler: async (input, context) => {
+                const admin = requireAdmin(context);
+                if (input.userId === admin.id) {
+                    throw new ActionError({ code: "BAD_REQUEST", message: "you can't delete your own account here" });
+                }
+                await db.delete(user).where(eq(user.id, input.userId));
             },
         }),
     },

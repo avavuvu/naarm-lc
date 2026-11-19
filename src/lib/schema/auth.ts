@@ -10,6 +10,11 @@ export const user = pgTable("user", {
     emailVerified: boolean("email_verified").default(false).notNull(),
     image: text("image"),
     role: text("role", { enum: ["member", "admin"] }).default("member").notNull(),
+    status: text("status", { enum: ["pending", "approved", "declined"] }).default("pending").notNull(),
+    slug: text("slug").unique(),
+    alias: text("alias"),
+    bio: text("bio"),
+    links: text("links").array().default([]).notNull(),
     createdAt: time("created_at").defaultNow().notNull(),
     updatedAt: time("updated_at")
         .defaultNow()
